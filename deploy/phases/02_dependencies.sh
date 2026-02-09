@@ -3,6 +3,7 @@ source "$(dirname "$0")/../lib/checks.sh"
 
 ensure_cmd git git
 ensure_cmd psql postgresql-client
+ensure_cmd postgres postgresql
 ensure_cmd node nodejs
 ensure_cmd npm npm
 
