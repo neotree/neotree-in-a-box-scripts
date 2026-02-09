@@ -81,6 +81,11 @@ create_db_and_user() {
   esc_pw="${PGPASSWORD//\'/\'\'}"
 
   log_info "Creating PostgreSQL user and database (if needed)"
+  if ! id -u postgres >/dev/null 2>&1; then
+    log_error "System user 'postgres' not found. Install PostgreSQL server or create the user."
+    return 1
+  fi
+
   sudo -u postgres psql -v ON_ERROR_STOP=1 <<SQL
 DO \$\$
 BEGIN
@@ -154,8 +159,12 @@ write_env_file "$ENV_FILE"
 log_success ".env created at $ENV_FILE"
 
 if confirm "Create PostgreSQL user and database now? (requires sudo postgres access)"; then
-  create_db_and_user
-  log_success "PostgreSQL user/database ensured"
+  if create_db_and_user; then
+    log_success "PostgreSQL user/database ensured"
+  else
+    log_error "PostgreSQL provisioning failed"
+    exit 1
+  fi
 else
   log_warn "Skipping PostgreSQL provisioning"
 fi

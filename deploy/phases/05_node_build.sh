@@ -9,4 +9,8 @@ if [ ! -f .env ]; then
 fi
 
 npm install
-npm run build
+if npm run | grep -qE " build($|:)"; then
+  npm run build
+else
+  log_warn "No build script found in package.json, skipping build"
+fi
