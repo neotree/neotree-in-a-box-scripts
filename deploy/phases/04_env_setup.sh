@@ -74,6 +74,13 @@ MAIL_RECEIVERS=$MAIL_RECEIVERS
 EOF
 }
 
+validate_db_creds() {
+  log_info "Validating database credentials"
+  PGPASSWORD="$PGPASSWORD" psql -v ON_ERROR_STOP=1 \
+    "host=$PGHOST port=$PGPORT dbname=$PGDATABASE user=$PGUSER sslmode=prefer" \
+    -c "SELECT 1;" >/dev/null
+}
+
 create_db_and_user() {
   local esc_user esc_db esc_pw
   esc_user="$PGUSER"
@@ -167,4 +174,15 @@ if confirm "Create PostgreSQL user and database now? (requires sudo postgres acc
   fi
 else
   log_warn "Skipping PostgreSQL provisioning"
+fi
+
+if confirm "Validate database credentials now?"; then
+  if validate_db_creds; then
+    log_success "Database credentials are valid"
+  else
+    log_error "Database credential validation failed"
+    exit 1
+  fi
+else
+  log_warn "Skipping database credential validation"
 fi
