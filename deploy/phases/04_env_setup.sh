@@ -129,17 +129,12 @@ END
 \$\$;
 
 ALTER USER "$esc_user" WITH PASSWORD '$esc_pw';
-
-DO \$\$
-BEGIN
-  IF NOT EXISTS (SELECT FROM pg_database WHERE datname = '$esc_db') THEN
-    CREATE DATABASE "$esc_db" OWNER "$esc_user";
-  END IF;
-END
-\$\$;
-
 GRANT ALL PRIVILEGES ON DATABASE "$esc_db" TO "$esc_user";
 SQL
+
+  if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${esc_db}'" | grep -q 1; then
+    sudo -u postgres createdb -O "$esc_user" "$esc_db"
+  fi
 }
 
 log_info "Configuring environment variables"
