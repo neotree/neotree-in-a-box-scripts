@@ -129,12 +129,13 @@ END
 \$\$;
 
 ALTER USER "$esc_user" WITH PASSWORD '$esc_pw';
-GRANT ALL PRIVILEGES ON DATABASE "$esc_db" TO "$esc_user";
 SQL
 
   if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${esc_db}'" | grep -q 1; then
     sudo -u postgres createdb -O "$esc_user" "$esc_db"
   fi
+
+  sudo -u postgres psql -v ON_ERROR_STOP=1 -c "GRANT ALL PRIVILEGES ON DATABASE \"$esc_db\" TO \"$esc_user\";"
 }
 
 log_info "Configuring environment variables"
