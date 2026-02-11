@@ -116,54 +116,86 @@ SQL
 
 log_info "Configuring environment variables"
 
+OVERWRITE_ENV=1
+WRITE_ENV=0
+
 if [ -f "$ENV_FILE" ]; then
   log_warn ".env already exists at $ENV_FILE"
   if ! confirm "Overwrite existing .env?"; then
     log_info "Keeping existing .env"
-    exit 0
+    OVERWRITE_ENV=0
   fi
 fi
 
-if [ ! -f "$EXAMPLE_FILE" ]; then
-  log_warn ".env-example not found. Proceeding with interactive setup."
-fi
-
-SERVER_PORT="$(prompt_required "SERVER_PORT" "3000")"
-PGDATABASE="$(prompt_required "PGDATABASE")"
-PGUSER="$(prompt_required "PGUSER")"
-PGPASSWORD="$(prompt_required "PGPASSWORD")"
-PGPORT="$(prompt_required "PGPORT" "5432")"
-PGHOST="$(prompt_required "PGHOST" "localhost")"
-
-require_simple_ident "PGDATABASE" "$PGDATABASE"
-require_simple_ident "PGUSER" "$PGUSER"
-
-MAIL_MAILER=""
-MAIL_HOST=""
-MAIL_PORT=""
-MAIL_USERNAME=""
-MAIL_PASSWORD=""
-MAIL_ENCRYPTION=""
-MAIL_FROM_ADDRESS=""
-MAIL_FROM_NAME=""
-MAIL_RECEIVERS=""
-
-if confirm "Configure email server variables now?"; then
-  MAIL_MAILER="$(prompt_required "MAIL_MAILER (e.g. smtp)")"
-  MAIL_HOST="$(prompt_required "MAIL_HOST")"
-  MAIL_PORT="$(prompt_required "MAIL_PORT" "587")"
-  MAIL_USERNAME="$(prompt_required "MAIL_USERNAME")"
-  MAIL_PASSWORD="$(prompt_required "MAIL_PASSWORD")"
-  MAIL_ENCRYPTION="$(prompt_required "MAIL_ENCRYPTION (e.g. tls)")"
-  MAIL_FROM_ADDRESS="$(prompt_required "MAIL_FROM_ADDRESS")"
-  MAIL_FROM_NAME="$(prompt_required "MAIL_FROM_NAME")"
-  MAIL_RECEIVERS="$(prompt_required "MAIL_RECEIVERS (comma-separated)")"
+if [ "$OVERWRITE_ENV" -eq 0 ]; then
+  set -a
+  . "$ENV_FILE"
+  set +a
 else
-  log_warn "Skipping email configuration"
+  if [ ! -f "$EXAMPLE_FILE" ]; then
+    log_warn ".env-example not found. Proceeding with interactive setup."
+  fi
+
+  SERVER_PORT="$(prompt_required "SERVER_PORT" "3000")"
+  PGDATABASE="$(prompt_required "PGDATABASE")"
+  PGUSER="$(prompt_required "PGUSER")"
+  PGPASSWORD="$(prompt_required "PGPASSWORD")"
+  PGPORT="$(prompt_required "PGPORT" "5432")"
+  PGHOST="$(prompt_required "PGHOST" "localhost")"
+
+  require_simple_ident "PGDATABASE" "$PGDATABASE"
+  require_simple_ident "PGUSER" "$PGUSER"
+
+  MAIL_MAILER=""
+  MAIL_HOST=""
+  MAIL_PORT=""
+  MAIL_USERNAME=""
+  MAIL_PASSWORD=""
+  MAIL_ENCRYPTION=""
+  MAIL_FROM_ADDRESS=""
+  MAIL_FROM_NAME=""
+  MAIL_RECEIVERS=""
+
+  if confirm "Configure email server variables now?"; then
+    MAIL_MAILER="$(prompt_required "MAIL_MAILER (e.g. smtp)")"
+    MAIL_HOST="$(prompt_required "MAIL_HOST")"
+    MAIL_PORT="$(prompt_required "MAIL_PORT" "587")"
+    MAIL_USERNAME="$(prompt_required "MAIL_USERNAME")"
+    MAIL_PASSWORD="$(prompt_required "MAIL_PASSWORD")"
+    MAIL_ENCRYPTION="$(prompt_required "MAIL_ENCRYPTION (e.g. tls)")"
+    MAIL_FROM_ADDRESS="$(prompt_required "MAIL_FROM_ADDRESS")"
+    MAIL_FROM_NAME="$(prompt_required "MAIL_FROM_NAME")"
+    MAIL_RECEIVERS="$(prompt_required "MAIL_RECEIVERS (comma-separated)")"
+  else
+    log_warn "Skipping email configuration"
+  fi
+
+  WRITE_ENV=1
 fi
 
-write_env_file "$ENV_FILE"
-log_success ".env created at $ENV_FILE"
+if [ -z "${SERVER_PORT:-}" ] || [ -z "${PGDATABASE:-}" ] || [ -z "${PGUSER:-}" ] || [ -z "${PGPASSWORD:-}" ] || [ -z "${PGPORT:-}" ] || [ -z "${PGHOST:-}" ]; then
+  log_warn "Required database variables are missing in .env"
+  if confirm "Update .env with required database values now?"; then
+    SERVER_PORT="$(prompt_required "SERVER_PORT" "${SERVER_PORT:-3000}")"
+    PGDATABASE="$(prompt_required "PGDATABASE" "${PGDATABASE:-}")"
+    PGUSER="$(prompt_required "PGUSER" "${PGUSER:-}")"
+    PGPASSWORD="$(prompt_required "PGPASSWORD" "${PGPASSWORD:-}")"
+    PGPORT="$(prompt_required "PGPORT" "${PGPORT:-5432}")"
+    PGHOST="$(prompt_required "PGHOST" "${PGHOST:-localhost}")"
+
+    require_simple_ident "PGDATABASE" "$PGDATABASE"
+    require_simple_ident "PGUSER" "$PGUSER"
+    WRITE_ENV=1
+  else
+    log_error "Cannot proceed without required database variables"
+    exit 1
+  fi
+fi
+
+if [ "$WRITE_ENV" -eq 1 ]; then
+  write_env_file "$ENV_FILE"
+  log_success ".env updated at $ENV_FILE"
+fi
 
 if confirm "Create PostgreSQL user and database now? (requires sudo postgres access)"; then
   if create_db_and_user; then

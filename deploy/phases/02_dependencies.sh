@@ -3,9 +3,14 @@ source "$(dirname "$0")/../lib/checks.sh"
 
 ensure_cmd git git
 ensure_cmd psql postgresql-client
-ensure_cmd postgres postgresql
 ensure_cmd node nodejs
 ensure_cmd npm npm
+
+if ! id -u postgres >/dev/null 2>&1; then
+  log_warn "PostgreSQL server user 'postgres' not found"
+  confirm "Install postgresql server?"
+  sudo apt update && sudo apt install -y postgresql
+fi
 
 if ! command -v pm2 >/dev/null 2>&1; then
   log_warn "pm2 not found"
