@@ -1,8 +1,9 @@
+set -euo pipefail
 source "$(dirname "$0")/../lib/log.sh"
 
-APP_DIR="$HOME/neotree-node-api"
-ENV_FILE="$APP_DIR/.env"
-EXAMPLE_FILE="$APP_DIR/.env-example"
+APP_DIR="${APP_DIR:-$HOME/neotree-node-api}"
+ENV_FILE="${ENV_FILE:-$APP_DIR/.env}"
+EXAMPLE_FILE="${EXAMPLE_FILE:-$APP_DIR/.env-example}"
 
 if [ ! -d "$APP_DIR" ]; then
   log_error "App directory not found: $APP_DIR"
@@ -37,11 +38,31 @@ prompt_required() {
 }
 
 confirm() {
+  if [ "${AUTO_YES:-0}" = "1" ]; then
+    log_info "$1 [y/n]: y (AUTO_YES=1)"
+    return 0
+  fi
+  if [ ! -t 0 ]; then
+    log_error "Non-interactive shell. Set AUTO_YES=1 to proceed."
+    return 1
+  fi
   read -p "$1 [y/n]: " yn
   case $yn in
     [Yy]*) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+prompt_secret() {
+  local label="$1"
+  local value
+  if [ ! -t 0 ]; then
+    log_error "Non-interactive shell cannot prompt for secrets."
+    return 1
+  fi
+  read -s -p "$label: " value
+  echo
+  echo "$value"
 }
 
 require_simple_ident() {
@@ -76,8 +97,13 @@ EOF
 
 validate_db_creds() {
   log_info "Validating database credentials"
+  if command -v pg_isready >/dev/null 2>&1; then
+    if ! pg_isready -q -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE"; then
+      log_warn "pg_isready check failed (server not ready or auth required)"
+    fi
+  fi
   PGPASSWORD="$PGPASSWORD" psql -v ON_ERROR_STOP=1 \
-    "host=$PGHOST port=$PGPORT dbname=$PGDATABASE user=$PGUSER sslmode=prefer" \
+    "host=$PGHOST port=$PGPORT dbname=$PGDATABASE user=$PGUSER sslmode=${PGSSLMODE:-prefer}" \
     -c "SELECT 1;" >/dev/null
 }
 
@@ -101,6 +127,8 @@ BEGIN
   END IF;
 END
 \$\$;
+
+ALTER USER "$esc_user" WITH PASSWORD '$esc_pw';
 
 DO \$\$
 BEGIN
@@ -139,7 +167,11 @@ else
   SERVER_PORT="$(prompt_required "SERVER_PORT" "3000")"
   PGDATABASE="$(prompt_required "PGDATABASE")"
   PGUSER="$(prompt_required "PGUSER")"
-  PGPASSWORD="$(prompt_required "PGPASSWORD")"
+  PGPASSWORD="$(prompt_secret "PGPASSWORD")"
+  if [ -z "$PGPASSWORD" ]; then
+    log_error "PGPASSWORD is required."
+    exit 1
+  fi
   PGPORT="$(prompt_required "PGPORT" "5432")"
   PGHOST="$(prompt_required "PGHOST" "localhost")"
 
@@ -161,7 +193,11 @@ else
     MAIL_HOST="$(prompt_required "MAIL_HOST")"
     MAIL_PORT="$(prompt_required "MAIL_PORT" "587")"
     MAIL_USERNAME="$(prompt_required "MAIL_USERNAME")"
-    MAIL_PASSWORD="$(prompt_required "MAIL_PASSWORD")"
+    MAIL_PASSWORD="$(prompt_secret "MAIL_PASSWORD")"
+    if [ -z "$MAIL_PASSWORD" ]; then
+      log_error "MAIL_PASSWORD is required."
+      exit 1
+    fi
     MAIL_ENCRYPTION="$(prompt_required "MAIL_ENCRYPTION (e.g. tls)")"
     MAIL_FROM_ADDRESS="$(prompt_required "MAIL_FROM_ADDRESS")"
     MAIL_FROM_NAME="$(prompt_required "MAIL_FROM_NAME")"
@@ -179,7 +215,19 @@ if [ -z "${SERVER_PORT:-}" ] || [ -z "${PGDATABASE:-}" ] || [ -z "${PGUSER:-}" ]
     SERVER_PORT="$(prompt_required "SERVER_PORT" "${SERVER_PORT:-3000}")"
     PGDATABASE="$(prompt_required "PGDATABASE" "${PGDATABASE:-}")"
     PGUSER="$(prompt_required "PGUSER" "${PGUSER:-}")"
-    PGPASSWORD="$(prompt_required "PGPASSWORD" "${PGPASSWORD:-}")"
+    if [ -n "${PGPASSWORD:-}" ]; then
+      old_pw="$PGPASSWORD"
+      PGPASSWORD="$(prompt_secret "PGPASSWORD (press enter to keep existing)")"
+      if [ -z "$PGPASSWORD" ]; then
+        PGPASSWORD="$old_pw"
+      fi
+    else
+      PGPASSWORD="$(prompt_secret "PGPASSWORD")"
+      if [ -z "$PGPASSWORD" ]; then
+        log_error "PGPASSWORD is required."
+        exit 1
+      fi
+    fi
     PGPORT="$(prompt_required "PGPORT" "${PGPORT:-5432}")"
     PGHOST="$(prompt_required "PGHOST" "${PGHOST:-localhost}")"
 
@@ -194,6 +242,7 @@ fi
 
 if [ "$WRITE_ENV" -eq 1 ]; then
   write_env_file "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
   log_success ".env updated at $ENV_FILE"
 fi
 
@@ -213,7 +262,22 @@ if confirm "Validate database credentials now?"; then
     log_success "Database credentials are valid"
   else
     log_error "Database credential validation failed"
-    exit 1
+    if confirm "Attempt to create/update PostgreSQL user/database with provided creds?"; then
+      if create_db_and_user; then
+        log_success "PostgreSQL user/database ensured"
+        if validate_db_creds; then
+          log_success "Database credentials are valid"
+        else
+          log_error "Database credential validation failed after provisioning"
+          exit 1
+        fi
+      else
+        log_error "PostgreSQL provisioning failed"
+        exit 1
+      fi
+    else
+      exit 1
+    fi
   fi
 else
   log_warn "Skipping database credential validation"

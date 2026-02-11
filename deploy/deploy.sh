@@ -5,7 +5,14 @@ BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$BASE_DIR/lib/log.sh"
 source "$BASE_DIR/lib/checks.sh"
 
+LOG_DIR="$BASE_DIR/logs"
+mkdir -p "$LOG_DIR"
+RUN_LOG="$LOG_DIR/deploy_$(date +%Y%m%d_%H%M%S).log"
+exec > >(tee -a "$RUN_LOG") 2>&1
+trap 'log_error "Deployment failed at line $LINENO. See $RUN_LOG"; exit 1' ERR
+
 log_info "Starting Neotree Story 6 deployment"
+log_info "Deploy log: $RUN_LOG"
 
 bash "$BASE_DIR/phases/01_preflight.sh"
 bash "$BASE_DIR/phases/02_dependencies.sh"

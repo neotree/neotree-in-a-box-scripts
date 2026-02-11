@@ -1,3 +1,4 @@
+set -euo pipefail
 source "$(dirname "$0")/../lib/log.sh"
 source "$(dirname "$0")/../lib/checks.sh"
 
@@ -8,13 +9,14 @@ ensure_cmd npm npm
 
 if ! id -u postgres >/dev/null 2>&1; then
   log_warn "PostgreSQL server user 'postgres' not found"
-  confirm "Install postgresql server?"
-  sudo apt update && sudo apt install -y postgresql
+  confirm_or_exit "Install postgresql server?"
+  apt_update_once
+  sudo apt install -y postgresql
 fi
 
 if ! command -v pm2 >/dev/null 2>&1; then
   log_warn "pm2 not found"
-  confirm "Install pm2 globally?"
+  confirm_or_exit "Install pm2 globally?"
   NPM_BIN="$(command -v npm || true)"
   if [ -z "$NPM_BIN" ]; then
     log_error "npm not found after install"

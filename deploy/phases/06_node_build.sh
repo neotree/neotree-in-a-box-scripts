@@ -1,5 +1,6 @@
+set -euo pipefail
 source "$(dirname "$0")/../lib/log.sh"
-APP_DIR="$HOME/neotree-node-api"
+APP_DIR="${APP_DIR:-$HOME/neotree-node-api}"
 cd "$APP_DIR"
 
 if [ ! -f .env ]; then
@@ -8,7 +9,11 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-npm install
+if [ -f package-lock.json ]; then
+  npm ci
+else
+  npm install
+fi
 if npm run | grep -qE " build($|:)"; then
   npm run build
 else
