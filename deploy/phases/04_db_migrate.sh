@@ -39,7 +39,7 @@ dotenv_read_var "$ENV_FILE" PGPORT ""
 dotenv_read_var "$ENV_FILE" PGPASSWORD ""
 dotenv_read_var "$ENV_FILE" PGSSLMODE "prefer"
 
-if [ -z "${PGDATABASE:-}" ] || [ -z "${PGUSER:-}" ] || [ -z "${PGHOST:-}" ] || [ -z "${PGPORT:-}" ]; then
+if [ -z "${PGDATABASE:-}" ] || [ -z "${PGUSER:-}" ] || [ -z "${PGHOST:-}" ] || [ -z "${PGPORT:-}" ] || [ -z "${PGPASSWORD:-}" ]; then
   log_error "Missing required PG* variables for migration"
   exit 1
 fi

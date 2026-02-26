@@ -19,6 +19,8 @@ dotenv__decode() {
 
   if [[ "$v" == \'*\' ]] && [[ "$v" == *\' ]]; then
     v="${v:1:${#v}-2}"
+    # Accept both dotenv-style and shell-style escaped single quotes.
+    v="${v//\\\'/\'}"
     v="${v//"'\\''"/\'}"
     printf '%s' "$v"
     return 0
@@ -63,6 +65,8 @@ dotenv_read_var() {
 
 dotenv_quote() {
   local value="$1"
-  value="${value//\'/\'\\\'\'}"
-  printf "'%s'" "$value"
+  # Store values as double-quoted dotenv strings.
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  printf '"%s"' "$value"
 }
