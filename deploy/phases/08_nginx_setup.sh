@@ -1,6 +1,7 @@
 set -euo pipefail
 source "$(dirname "$0")/../lib/log.sh"
 source "$(dirname "$0")/../lib/checks.sh"
+source "$(dirname "$0")/../lib/dotenv.sh"
 
 APP_DIR="${APP_DIR:-$HOME/neotree/node-api}"
 ENV_FILE="${ENV_FILE:-$APP_DIR/.env}"
@@ -26,9 +27,7 @@ fi
 
 SERVER_PORT="3000"
 if [ -f "$ENV_FILE" ]; then
-  set -a
-  . "$ENV_FILE"
-  set +a
+  dotenv_read_var "$ENV_FILE" SERVER_PORT "3000"
   SERVER_PORT="${SERVER_PORT:-3000}"
 fi
 

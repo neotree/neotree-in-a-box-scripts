@@ -1,5 +1,6 @@
 set -euo pipefail
 source "$(dirname "$0")/../lib/log.sh"
+source "$(dirname "$0")/../lib/dotenv.sh"
 
 APP_DIR="${APP_DIR:-$HOME/neotree/node-api}"
 ENV_FILE="${ENV_FILE:-$APP_DIR/.env}"
@@ -31,9 +32,12 @@ if ! flock -n 9; then
   exit 1
 fi
 
-set -a
-. "$ENV_FILE"
-set +a
+dotenv_read_var "$ENV_FILE" PGDATABASE ""
+dotenv_read_var "$ENV_FILE" PGUSER ""
+dotenv_read_var "$ENV_FILE" PGHOST ""
+dotenv_read_var "$ENV_FILE" PGPORT ""
+dotenv_read_var "$ENV_FILE" PGPASSWORD ""
+dotenv_read_var "$ENV_FILE" PGSSLMODE "prefer"
 
 if [ -z "${PGDATABASE:-}" ] || [ -z "${PGUSER:-}" ] || [ -z "${PGHOST:-}" ] || [ -z "${PGPORT:-}" ]; then
   log_error "Missing required PG* variables for migration"
@@ -42,8 +46,6 @@ fi
 
 log_info "Running database scripts from $DB_DIR"
 log_info "Migration log: $LOG_FILE"
-
-PGSSLMODE="${PGSSLMODE:-prefer}"
 
 if [ "${DRY_RUN:-0}" = "1" ]; then
   log_warn "DRY_RUN=1 set. Listing SQL files only."

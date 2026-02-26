@@ -1,5 +1,6 @@
 set -euo pipefail
 source "$(dirname "$0")/../lib/log.sh"
+source "$(dirname "$0")/../lib/dotenv.sh"
 
 APP_ROOT="${APP_ROOT:-$HOME/neotree}"
 APP_DIR="${APP_DIR:-$APP_ROOT/node-api}"
@@ -78,22 +79,101 @@ require_simple_ident() {
 write_env_file() {
   local file="$1"
   cat >"$file" <<EOF
-SERVER_PORT=$SERVER_PORT
-PGDATABASE=$PGDATABASE
-PGUSER=$PGUSER
-PGPASSWORD=$PGPASSWORD
-PGPORT=$PGPORT
-PGHOST=$PGHOST
-MAIL_MAILER=$MAIL_MAILER
-MAIL_HOST=$MAIL_HOST
-MAIL_PORT=$MAIL_PORT
-MAIL_USERNAME=$MAIL_USERNAME
-MAIL_PASSWORD=$MAIL_PASSWORD
-MAIL_ENCRYPTION=$MAIL_ENCRYPTION
-MAIL_FROM_ADDRESS=$MAIL_FROM_ADDRESS
-MAIL_FROM_NAME=$MAIL_FROM_NAME
-MAIL_RECEIVERS=$MAIL_RECEIVERS
+SERVER_PORT=$(dotenv_quote "${SERVER_PORT:-}")
+PGDATABASE=$(dotenv_quote "${PGDATABASE:-}")
+PGUSER=$(dotenv_quote "${PGUSER:-}")
+PGPASSWORD=$(dotenv_quote "${PGPASSWORD:-}")
+PGPORT=$(dotenv_quote "${PGPORT:-}")
+PGHOST=$(dotenv_quote "${PGHOST:-}")
+MAIL_MAILER=$(dotenv_quote "${MAIL_MAILER:-}")
+MAIL_HOST=$(dotenv_quote "${MAIL_HOST:-}")
+MAIL_PORT=$(dotenv_quote "${MAIL_PORT:-}")
+MAIL_USERNAME=$(dotenv_quote "${MAIL_USERNAME:-}")
+MAIL_PASSWORD=$(dotenv_quote "${MAIL_PASSWORD:-}")
+MAIL_ENCRYPTION=$(dotenv_quote "${MAIL_ENCRYPTION:-}")
+MAIL_FROM_ADDRESS=$(dotenv_quote "${MAIL_FROM_ADDRESS:-}")
+MAIL_FROM_NAME=$(dotenv_quote "${MAIL_FROM_NAME:-}")
+MAIL_RECEIVERS=$(dotenv_quote "${MAIL_RECEIVERS:-}")
 EOF
+}
+
+load_env_from_file() {
+  dotenv_read_var "$ENV_FILE" SERVER_PORT ""
+  dotenv_read_var "$ENV_FILE" PGDATABASE ""
+  dotenv_read_var "$ENV_FILE" PGUSER ""
+  dotenv_read_var "$ENV_FILE" PGPASSWORD ""
+  dotenv_read_var "$ENV_FILE" PGPORT ""
+  dotenv_read_var "$ENV_FILE" PGHOST ""
+  dotenv_read_var "$ENV_FILE" MAIL_MAILER ""
+  dotenv_read_var "$ENV_FILE" MAIL_HOST ""
+  dotenv_read_var "$ENV_FILE" MAIL_PORT ""
+  dotenv_read_var "$ENV_FILE" MAIL_USERNAME ""
+  dotenv_read_var "$ENV_FILE" MAIL_PASSWORD ""
+  dotenv_read_var "$ENV_FILE" MAIL_ENCRYPTION ""
+  dotenv_read_var "$ENV_FILE" MAIL_FROM_ADDRESS ""
+  dotenv_read_var "$ENV_FILE" MAIL_FROM_NAME ""
+  dotenv_read_var "$ENV_FILE" MAIL_RECEIVERS ""
+}
+
+required_db_vars_present() {
+  [ -n "${SERVER_PORT:-}" ] &&
+    [ -n "${PGDATABASE:-}" ] &&
+    [ -n "${PGUSER:-}" ] &&
+    [ -n "${PGPASSWORD:-}" ] &&
+    [ -n "${PGPORT:-}" ] &&
+    [ -n "${PGHOST:-}" ]
+}
+
+prompt_db_values() {
+  SERVER_PORT="$(prompt_required "SERVER_PORT" "${SERVER_PORT:-3000}")"
+  PGDATABASE="$(prompt_required "PGDATABASE" "${PGDATABASE:-}")"
+  PGUSER="$(prompt_required "PGUSER" "${PGUSER:-}")"
+
+  if [ -n "${PGPASSWORD:-}" ]; then
+    local old_pw new_pw
+    old_pw="$PGPASSWORD"
+    new_pw="$(prompt_secret "PGPASSWORD (press enter to keep existing)")"
+    PGPASSWORD="${new_pw:-$old_pw}"
+  else
+    PGPASSWORD="$(prompt_secret "PGPASSWORD")"
+    if [ -z "$PGPASSWORD" ]; then
+      log_error "PGPASSWORD is required."
+      exit 1
+    fi
+  fi
+
+  PGPORT="$(prompt_required "PGPORT" "${PGPORT:-5432}")"
+  PGHOST="$(prompt_required "PGHOST" "${PGHOST:-localhost}")"
+
+  require_simple_ident "PGDATABASE" "$PGDATABASE"
+  require_simple_ident "PGUSER" "$PGUSER"
+}
+
+prompt_email_values() {
+  if confirm "Configure email server variables now?"; then
+    MAIL_MAILER="$(prompt_required "MAIL_MAILER (e.g. smtp)" "${MAIL_MAILER:-}")"
+    MAIL_HOST="$(prompt_required "MAIL_HOST" "${MAIL_HOST:-}")"
+    MAIL_PORT="$(prompt_required "MAIL_PORT" "${MAIL_PORT:-587}")"
+    MAIL_USERNAME="$(prompt_required "MAIL_USERNAME" "${MAIL_USERNAME:-}")"
+    if [ -n "${MAIL_PASSWORD:-}" ]; then
+      local old_mail_pw new_mail_pw
+      old_mail_pw="$MAIL_PASSWORD"
+      new_mail_pw="$(prompt_secret "MAIL_PASSWORD (press enter to keep existing)")"
+      MAIL_PASSWORD="${new_mail_pw:-$old_mail_pw}"
+    else
+      MAIL_PASSWORD="$(prompt_secret "MAIL_PASSWORD")"
+      if [ -z "$MAIL_PASSWORD" ]; then
+        log_error "MAIL_PASSWORD is required."
+        exit 1
+      fi
+    fi
+    MAIL_ENCRYPTION="$(prompt_required "MAIL_ENCRYPTION (e.g. tls)" "${MAIL_ENCRYPTION:-}")"
+    MAIL_FROM_ADDRESS="$(prompt_required "MAIL_FROM_ADDRESS" "${MAIL_FROM_ADDRESS:-}")"
+    MAIL_FROM_NAME="$(prompt_required "MAIL_FROM_NAME" "${MAIL_FROM_NAME:-}")"
+    MAIL_RECEIVERS="$(prompt_required "MAIL_RECEIVERS (comma-separated)" "${MAIL_RECEIVERS:-}")"
+  else
+    log_warn "Skipping email configuration"
+  fi
 }
 
 validate_db_creds() {
@@ -147,40 +227,38 @@ SQL
 
 log_info "Configuring environment variables"
 
-OVERWRITE_ENV=1
 WRITE_ENV=0
 
 if [ -f "$ENV_FILE" ]; then
-  log_warn ".env already exists at $ENV_FILE"
-  if ! confirm "Overwrite existing .env?"; then
-    log_info "Keeping existing .env"
-    OVERWRITE_ENV=0
+  log_info ".env found at $ENV_FILE"
+  load_env_from_file
+  if required_db_vars_present; then
+    log_success "Existing .env already has required DB settings."
+    if confirm "Edit existing .env values?"; then
+      prompt_db_values
+      prompt_email_values
+      WRITE_ENV=1
+    else
+      log_info "Keeping existing .env values"
+    fi
+  else
+    log_warn ".env is missing required DB settings."
+    if confirm "Edit .env and complete required values now?"; then
+      prompt_db_values
+      prompt_email_values
+      WRITE_ENV=1
+    else
+      log_error "Cannot proceed without required database variables"
+      exit 1
+    fi
   fi
-fi
-
-if [ "$OVERWRITE_ENV" -eq 0 ]; then
-  set -a
-  . "$ENV_FILE"
-  set +a
 else
-  if [ ! -f "$EXAMPLE_FILE" ]; then
-    log_warn ".env-example not found. Proceeding with interactive setup."
-  fi
-
-  SERVER_PORT="$(prompt_required "SERVER_PORT" "3000")"
-  PGDATABASE="$(prompt_required "PGDATABASE")"
-  PGUSER="$(prompt_required "PGUSER")"
-  PGPASSWORD="$(prompt_secret "PGPASSWORD")"
-  if [ -z "$PGPASSWORD" ]; then
-    log_error "PGPASSWORD is required."
-    exit 1
-  fi
-  PGPORT="$(prompt_required "PGPORT" "5432")"
-  PGHOST="$(prompt_required "PGHOST" "localhost")"
-
-  require_simple_ident "PGDATABASE" "$PGDATABASE"
-  require_simple_ident "PGUSER" "$PGUSER"
-
+  SERVER_PORT=""
+  PGDATABASE=""
+  PGUSER=""
+  PGPASSWORD=""
+  PGPORT=""
+  PGHOST=""
   MAIL_MAILER=""
   MAIL_HOST=""
   MAIL_PORT=""
@@ -191,56 +269,18 @@ else
   MAIL_FROM_NAME=""
   MAIL_RECEIVERS=""
 
-  if confirm "Configure email server variables now?"; then
-    MAIL_MAILER="$(prompt_required "MAIL_MAILER (e.g. smtp)")"
-    MAIL_HOST="$(prompt_required "MAIL_HOST")"
-    MAIL_PORT="$(prompt_required "MAIL_PORT" "587")"
-    MAIL_USERNAME="$(prompt_required "MAIL_USERNAME")"
-    MAIL_PASSWORD="$(prompt_secret "MAIL_PASSWORD")"
-    if [ -z "$MAIL_PASSWORD" ]; then
-      log_error "MAIL_PASSWORD is required."
-      exit 1
-    fi
-    MAIL_ENCRYPTION="$(prompt_required "MAIL_ENCRYPTION (e.g. tls)")"
-    MAIL_FROM_ADDRESS="$(prompt_required "MAIL_FROM_ADDRESS")"
-    MAIL_FROM_NAME="$(prompt_required "MAIL_FROM_NAME")"
-    MAIL_RECEIVERS="$(prompt_required "MAIL_RECEIVERS (comma-separated)")"
-  else
-    log_warn "Skipping email configuration"
+  if [ ! -f "$EXAMPLE_FILE" ]; then
+    log_warn ".env-example not found. Proceeding with interactive setup."
   fi
 
+  prompt_db_values
+  prompt_email_values
   WRITE_ENV=1
 fi
 
-if [ -z "${SERVER_PORT:-}" ] || [ -z "${PGDATABASE:-}" ] || [ -z "${PGUSER:-}" ] || [ -z "${PGPASSWORD:-}" ] || [ -z "${PGPORT:-}" ] || [ -z "${PGHOST:-}" ]; then
-  log_warn "Required database variables are missing in .env"
-  if confirm "Update .env with required database values now?"; then
-    SERVER_PORT="$(prompt_required "SERVER_PORT" "${SERVER_PORT:-3000}")"
-    PGDATABASE="$(prompt_required "PGDATABASE" "${PGDATABASE:-}")"
-    PGUSER="$(prompt_required "PGUSER" "${PGUSER:-}")"
-    if [ -n "${PGPASSWORD:-}" ]; then
-      old_pw="$PGPASSWORD"
-      PGPASSWORD="$(prompt_secret "PGPASSWORD (press enter to keep existing)")"
-      if [ -z "$PGPASSWORD" ]; then
-        PGPASSWORD="$old_pw"
-      fi
-    else
-      PGPASSWORD="$(prompt_secret "PGPASSWORD")"
-      if [ -z "$PGPASSWORD" ]; then
-        log_error "PGPASSWORD is required."
-        exit 1
-      fi
-    fi
-    PGPORT="$(prompt_required "PGPORT" "${PGPORT:-5432}")"
-    PGHOST="$(prompt_required "PGHOST" "${PGHOST:-localhost}")"
-
-    require_simple_ident "PGDATABASE" "$PGDATABASE"
-    require_simple_ident "PGUSER" "$PGUSER"
-    WRITE_ENV=1
-  else
-    log_error "Cannot proceed without required database variables"
-    exit 1
-  fi
+if ! required_db_vars_present; then
+  log_error "Required database variables are missing."
+  exit 1
 fi
 
 if [ "$WRITE_ENV" -eq 1 ]; then
