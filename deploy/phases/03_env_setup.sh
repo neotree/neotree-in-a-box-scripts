@@ -1,7 +1,8 @@
 set -euo pipefail
 source "$(dirname "$0")/../lib/log.sh"
 
-APP_DIR="${APP_DIR:-$HOME/neotree-node-api}"
+APP_ROOT="${APP_ROOT:-$HOME/neotree}"
+APP_DIR="${APP_DIR:-$APP_ROOT/node-api}"
 ENV_FILE="${ENV_FILE:-$APP_DIR/.env}"
 EXAMPLE_FILE="${EXAMPLE_FILE:-$APP_DIR/.env-example}"
 
@@ -96,7 +97,7 @@ EOF
 }
 
 validate_db_creds() {
-  log_info "Validating database credentials"
+  log_info "Validating database credentials using password auth (host/port)"
   if command -v pg_isready >/dev/null 2>&1; then
     if ! pg_isready -q -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE"; then
       log_warn "pg_isready check failed (server not ready or auth required)"
@@ -123,19 +124,25 @@ create_db_and_user() {
 DO \$\$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '$esc_user') THEN
-    CREATE USER "$esc_user" WITH PASSWORD '$esc_pw';
+    CREATE ROLE "$esc_user" LOGIN PASSWORD '$esc_pw' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOINHERIT;
   END IF;
 END
 \$\$;
 
-ALTER USER "$esc_user" WITH PASSWORD '$esc_pw';
+ALTER ROLE "$esc_user" WITH LOGIN PASSWORD '$esc_pw' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOINHERIT;
 SQL
 
   if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${esc_db}'" | grep -q 1; then
     sudo -u postgres createdb -O "$esc_user" "$esc_db"
   fi
 
-  sudo -u postgres psql -v ON_ERROR_STOP=1 -c "GRANT ALL PRIVILEGES ON DATABASE \"$esc_db\" TO \"$esc_user\";"
+  sudo -u postgres psql -v ON_ERROR_STOP=1 <<SQL
+ALTER DATABASE "$esc_db" OWNER TO "$esc_user";
+REVOKE ALL ON DATABASE "$esc_db" FROM PUBLIC;
+GRANT CONNECT, TEMP ON DATABASE "$esc_db" TO "$esc_user";
+SQL
+
+  validate_db_creds
 }
 
 log_info "Configuring environment variables"

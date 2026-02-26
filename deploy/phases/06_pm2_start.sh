@@ -1,6 +1,6 @@
 set -euo pipefail
 source "$(dirname "$0")/../lib/log.sh"
-APP_DIR="${APP_DIR:-$HOME/neotree-node-api}"
+APP_DIR="${APP_DIR:-$HOME/neotree/node-api}"
 cd "$APP_DIR"
 
 PM2_APP_NAME="${PM2_APP_NAME:-neotree-api}"

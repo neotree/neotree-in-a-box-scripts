@@ -1,9 +1,13 @@
 set -euo pipefail
 source "$(dirname "$0")/../lib/log.sh"
-APP_DIR="${APP_DIR:-$HOME/neotree-node-api}"
 
-if [ -d "$APP_DIR" ]; then
-  log_warn "Repo already exists, skipping clone"
+APP_ROOT="${APP_ROOT:-$HOME/neotree}"
+APP_DIR="${APP_DIR:-$APP_ROOT/node-api}"
+
+mkdir -p "$APP_ROOT"
+
+if [ -d "$APP_DIR/.git" ]; then
+  log_warn "Repo already exists at $APP_DIR"
   if [ "${UPDATE_REPO:-0}" = "1" ]; then
     log_info "Updating repo (UPDATE_REPO=1)"
     git -C "$APP_DIR" fetch --all
