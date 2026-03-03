@@ -1,26 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$BASE_DIR/lib/log.sh"
-source "$BASE_DIR/lib/checks.sh"
+NEOTREE_BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$NEOTREE_BASE_DIR/lib/log.sh"
+source "$NEOTREE_BASE_DIR/lib/checks.sh"
 
-LOG_DIR="$BASE_DIR/logs"
-mkdir -p "$LOG_DIR"
-RUN_LOG="$LOG_DIR/deploy_$(date +%Y%m%d_%H%M%S).log"
-exec > >(tee -a "$RUN_LOG") 2>&1
-trap 'log_error "Deployment failed at line $LINENO. See $RUN_LOG"; exit 1' ERR
+NEOTREE_LOG_DIR="$NEOTREE_BASE_DIR/logs"
+mkdir -p "$NEOTREE_LOG_DIR"
+NEOTREE_RUN_LOG="$NEOTREE_LOG_DIR/deploy_$(date +%Y%m%d_%H%M%S).log"
+exec > >(tee -a "$NEOTREE_RUN_LOG") 2>&1
+trap 'log_error "Deployment failed at line $LINENO. See $NEOTREE_RUN_LOG"; exit 1' ERR
 
 log_info "Starting Neotree Story 6 deployment"
-log_info "Deploy log: $RUN_LOG"
+log_info "Deploy log: $NEOTREE_RUN_LOG"
 
-bash "$BASE_DIR/phases/01_preflight.sh"
-bash "$BASE_DIR/phases/02_clone_repo.sh"
-bash "$BASE_DIR/phases/03_env_setup.sh"
-bash "$BASE_DIR/phases/04_db_migrate.sh"
-bash "$BASE_DIR/phases/05_node_build.sh"
-bash "$BASE_DIR/phases/06_pm2_start.sh"
-bash "$BASE_DIR/phases/07_post_install.sh"
-bash "$BASE_DIR/phases/08_nginx_setup.sh"
+bash "$NEOTREE_BASE_DIR/node-api/deploy.sh"
+bash "$NEOTREE_BASE_DIR/webeditor/deploy.sh"
 
 log_success "Neotree deployment completed successfully"
