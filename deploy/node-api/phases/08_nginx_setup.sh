@@ -1,7 +1,7 @@
 set -euo pipefail
-source "$(dirname "$0")/../lib/log.sh"
-source "$(dirname "$0")/../lib/checks.sh"
-source "$(dirname "$0")/../lib/dotenv.sh"
+source "$(dirname "$0")/../../lib/log.sh"
+source "$(dirname "$0")/../../lib/checks.sh"
+source "$(dirname "$0")/../../lib/dotenv.sh"
 
 APP_DIR="${APP_DIR:-$HOME/neotree/node-api}"
 ENV_FILE="${ENV_FILE:-$APP_DIR/.env}"

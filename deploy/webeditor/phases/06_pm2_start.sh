@@ -1,5 +1,5 @@
 set -euo pipefail
-source "$(dirname "$0")/../lib/log.sh"
+source "$(dirname "$0")/../../lib/log.sh"
 APP_DIR="${APP_DIR:-$HOME/neotree/neotree-editor}"
 cd "$APP_DIR"
 

@@ -1,6 +1,6 @@
 set -euo pipefail
-source "$(dirname "$0")/../lib/log.sh"
-source "$(dirname "$0")/../lib/checks.sh"
+source "$(dirname "$0")/../../lib/log.sh"
+source "$(dirname "$0")/../../lib/checks.sh"
 
 log_info "Running preflight checks"
 

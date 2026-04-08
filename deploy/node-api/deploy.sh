@@ -2,8 +2,8 @@
 set -euo pipefail
 
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$BASE_DIR/lib/log.sh"
-source "$BASE_DIR/lib/checks.sh"
+source "$BASE_DIR/../lib/log.sh"
+source "$BASE_DIR/../lib/checks.sh"
 
 LOG_DIR="$BASE_DIR/logs"
 mkdir -p "$LOG_DIR"

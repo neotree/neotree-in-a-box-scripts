@@ -1,6 +1,6 @@
 set -euo pipefail
-source "$(dirname "$0")/../lib/log.sh"
-source "$(dirname "$0")/../lib/dotenv.sh"
+source "$(dirname "$0")/../../lib/log.sh"
+source "$(dirname "$0")/../../lib/dotenv.sh"
 
 APP_ROOT="${APP_ROOT:-$HOME/neotree}"
 APP_DIR="${APP_DIR:-$APP_ROOT/node-api}"
