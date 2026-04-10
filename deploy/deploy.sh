@@ -16,5 +16,7 @@ log_info "Deploy log: $NEOTREE_RUN_LOG"
 
 bash "$NEOTREE_BASE_DIR/node-api/deploy.sh"
 bash "$NEOTREE_BASE_DIR/webeditor/deploy.sh"
+bash "$NEOTREE_BASE_DIR/datapipeline/deploy.sh"
+bash "$NEOTREE_BASE_DIR/metabase/deploy.sh"
 
 log_success "Neotree deployment completed successfully"
