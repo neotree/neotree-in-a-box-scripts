@@ -1,6 +1,7 @@
 set -euo pipefail
 source "$(dirname "$0")/../../lib/log.sh"
 source "$(dirname "$0")/../../lib/dotenv.sh"
+source "$(dirname "$0")/../../lib/prompt.sh"
 
 APP_ROOT="${APP_ROOT:-$HOME/neotree}"
 APP_DIR="${APP_DIR:-$APP_ROOT/neotree-editor}"
@@ -53,18 +54,6 @@ confirm() {
     [Yy]*) return 0 ;;
     *) return 1 ;;
   esac
-}
-
-prompt_secret() {
-  local label="$1"
-  local value
-  if [ ! -t 0 ]; then
-    log_error "Non-interactive shell cannot prompt for secrets."
-    return 1
-  fi
-  read -s -p "$label: " value
-  printf '\n' >&2
-  dotenv_sanitize_value "$value"
 }
 
 require_simple_ident() {

@@ -1,6 +1,7 @@
 set -euo pipefail
 source "$(dirname "$0")/../../lib/log.sh"
 source "$(dirname "$0")/../../lib/dotenv.sh"
+source "$(dirname "$0")/../../lib/prompt.sh"
 source "$(dirname "$0")/../../lib/checks.sh"
 
 APP_ROOT="${APP_ROOT:-$HOME/neotree}"
@@ -25,23 +26,6 @@ prompt() {
       echo "${input:-$default_value}"
     else
       read -p "$label: " input || true
-      echo "$input"
-    fi
-  else
-    echo "$default_value"
-  fi
-}
-
-prompt_secret() {
-  local label="$1" default_value="${2:-}" input
-  if [ -t 0 ]; then
-    if [ -n "$default_value" ]; then
-      read -s -p "$label (press enter to keep default): " input || true
-      echo
-      echo "${input:-$default_value}"
-    else
-      read -s -p "$label: " input || true
-      echo
       echo "$input"
     fi
   else
