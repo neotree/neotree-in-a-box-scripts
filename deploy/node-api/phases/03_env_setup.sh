@@ -63,8 +63,8 @@ prompt_secret() {
     return 1
   fi
   read -s -p "$label: " value
-  echo
-  echo "$value"
+  printf '\n' >&2
+  dotenv_sanitize_value "$value"
 }
 
 require_simple_ident() {
@@ -78,23 +78,23 @@ require_simple_ident() {
 
 write_env_file() {
   local file="$1"
-  cat >"$file" <<EOF
-SERVER_PORT=$(dotenv_quote "${SERVER_PORT:-}")
-PGDATABASE=$(dotenv_quote "${PGDATABASE:-}")
-PGUSER=$(dotenv_quote "${PGUSER:-}")
-PGPASSWORD=$(dotenv_quote "${PGPASSWORD:-}")
-PGPORT=$(dotenv_quote "${PGPORT:-}")
-PGHOST=$(dotenv_quote "${PGHOST:-}")
-MAIL_MAILER=$(dotenv_quote "${MAIL_MAILER:-}")
-MAIL_HOST=$(dotenv_quote "${MAIL_HOST:-}")
-MAIL_PORT=$(dotenv_quote "${MAIL_PORT:-}")
-MAIL_USERNAME=$(dotenv_quote "${MAIL_USERNAME:-}")
-MAIL_PASSWORD=$(dotenv_quote "${MAIL_PASSWORD:-}")
-MAIL_ENCRYPTION=$(dotenv_quote "${MAIL_ENCRYPTION:-}")
-MAIL_FROM_ADDRESS=$(dotenv_quote "${MAIL_FROM_ADDRESS:-}")
-MAIL_FROM_NAME=$(dotenv_quote "${MAIL_FROM_NAME:-}")
-MAIL_RECEIVERS=$(dotenv_quote "${MAIL_RECEIVERS:-}")
-EOF
+  {
+    dotenv_write_var SERVER_PORT "${SERVER_PORT:-}"
+    dotenv_write_var PGDATABASE "${PGDATABASE:-}"
+    dotenv_write_var PGUSER "${PGUSER:-}"
+    dotenv_write_var PGPASSWORD "${PGPASSWORD:-}"
+    dotenv_write_var PGPORT "${PGPORT:-}"
+    dotenv_write_var PGHOST "${PGHOST:-}"
+    dotenv_write_var MAIL_MAILER "${MAIL_MAILER:-}"
+    dotenv_write_var MAIL_HOST "${MAIL_HOST:-}"
+    dotenv_write_var MAIL_PORT "${MAIL_PORT:-}"
+    dotenv_write_var MAIL_USERNAME "${MAIL_USERNAME:-}"
+    dotenv_write_var MAIL_PASSWORD "${MAIL_PASSWORD:-}"
+    dotenv_write_var MAIL_ENCRYPTION "${MAIL_ENCRYPTION:-}"
+    dotenv_write_var MAIL_FROM_ADDRESS "${MAIL_FROM_ADDRESS:-}"
+    dotenv_write_var MAIL_FROM_NAME "${MAIL_FROM_NAME:-}"
+    dotenv_write_var MAIL_RECEIVERS "${MAIL_RECEIVERS:-}"
+  } >"$file"
 }
 
 load_env_from_file() {

@@ -63,8 +63,8 @@ prompt_secret() {
     return 1
   fi
   read -s -p "$label: " value
-  echo
-  echo "$value"
+  printf '\n' >&2
+  dotenv_sanitize_value "$value"
 }
 
 require_simple_ident() {
@@ -78,31 +78,31 @@ require_simple_ident() {
 
 write_env_file() {
   local file="$1"
-  cat >"$file" <<EOF
-NEOTREE_SERVER_TYPE=$(dotenv_quote "${NEOTREE_SERVER_TYPE:-}")
-NODE_ENV=$(dotenv_quote "${NODE_ENV:-}")
-NEOTREE_ENV=$(dotenv_quote "${NEOTREE_ENV:-}")
-HOSTNAME=$(dotenv_quote "${HOSTNAME:-}")
-PORT=$(dotenv_quote "${PORT:-}")
-API_KEY=$(dotenv_quote "${API_KEY:-}")
-DEBUG=$(dotenv_quote "${DEBUG:-}")
-DB_LOGGING=$(dotenv_quote "${DB_LOGGING:-}")
-POSTGRES_DB_URL=$(dotenv_quote "${POSTGRES_DB_URL:-}")
-SESSIONS_DB_URL=$(dotenv_quote "${SESSIONS_DB_URL:-}")
-NEXT_PUBLIC_APP_NAME=$(dotenv_quote "${NEXT_PUBLIC_APP_NAME:-}")
-NEXT_PUBLIC_APP_URL=$(dotenv_quote "${NEXT_PUBLIC_APP_URL:-}")
-NEXTAUTH_URL=$(dotenv_quote "${NEXTAUTH_URL:-}")
-NEXTAUTH_SECRET=$(dotenv_quote "${NEXTAUTH_SECRET:-}")
-JWT_SECRET=$(dotenv_quote "${JWT_SECRET:-}")  
-MAIL_MAILER=$(dotenv_quote "${MAIL_MAILER:-}")  
-MAIL_HOST=$(dotenv_quote "${MAIL_HOST:-}")  
-MAIL_PORT=$(dotenv_quote "${MAIL_PORT:-}")  
-MAIL_USERNAME=$(dotenv_quote "${MAIL_USERNAME:-}")  
-MAIL_PASSWORD=$(dotenv_quote "${MAIL_PASSWORD:-}")  
-MAIL_ENCRYPTION=$(dotenv_quote "${MAIL_ENCRYPTION:-}")  
-MAIL_FROM_ADDRESS=$(dotenv_quote "${MAIL_FROM_ADDRESS:-}")  
-MAIL_FROM_NAME=$(dotenv_quote "${MAIL_FROM_NAME:-}")
-EOF
+  {
+    dotenv_write_var NEOTREE_SERVER_TYPE "${NEOTREE_SERVER_TYPE:-}"
+    dotenv_write_var NODE_ENV "${NODE_ENV:-}"
+    dotenv_write_var NEOTREE_ENV "${NEOTREE_ENV:-}"
+    dotenv_write_var HOSTNAME "${HOSTNAME:-}"
+    dotenv_write_var PORT "${PORT:-}"
+    dotenv_write_var API_KEY "${API_KEY:-}"
+    dotenv_write_var DEBUG "${DEBUG:-}"
+    dotenv_write_var DB_LOGGING "${DB_LOGGING:-}"
+    dotenv_write_var POSTGRES_DB_URL "${POSTGRES_DB_URL:-}"
+    dotenv_write_var SESSIONS_DB_URL "${SESSIONS_DB_URL:-}"
+    dotenv_write_var NEXT_PUBLIC_APP_NAME "${NEXT_PUBLIC_APP_NAME:-}"
+    dotenv_write_var NEXT_PUBLIC_APP_URL "${NEXT_PUBLIC_APP_URL:-}"
+    dotenv_write_var NEXTAUTH_URL "${NEXTAUTH_URL:-}"
+    dotenv_write_var NEXTAUTH_SECRET "${NEXTAUTH_SECRET:-}"
+    dotenv_write_var JWT_SECRET "${JWT_SECRET:-}"
+    dotenv_write_var MAIL_MAILER "${MAIL_MAILER:-}"
+    dotenv_write_var MAIL_HOST "${MAIL_HOST:-}"
+    dotenv_write_var MAIL_PORT "${MAIL_PORT:-}"
+    dotenv_write_var MAIL_USERNAME "${MAIL_USERNAME:-}"
+    dotenv_write_var MAIL_PASSWORD "${MAIL_PASSWORD:-}"
+    dotenv_write_var MAIL_ENCRYPTION "${MAIL_ENCRYPTION:-}"
+    dotenv_write_var MAIL_FROM_ADDRESS "${MAIL_FROM_ADDRESS:-}"
+    dotenv_write_var MAIL_FROM_NAME "${MAIL_FROM_NAME:-}"
+  } >"$file"
 }
 
 load_env_from_file() {

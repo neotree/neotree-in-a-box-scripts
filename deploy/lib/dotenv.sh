@@ -70,3 +70,16 @@ dotenv_quote() {
   value="${value//\"/\\\"}"
   printf '"%s"' "$value"
 }
+
+dotenv_sanitize_value() {
+  local value="$1"
+  value="${value//$'\r'/}"
+  value="${value//$'\n'/}"
+  printf '%s' "$value"
+}
+
+dotenv_write_var() {
+  local key="$1"
+  local value="$2"
+  printf '%s=%s\n' "$key" "$(dotenv_sanitize_value "$value")"
+}
