@@ -1,3 +1,6 @@
+LOG_DIR="${LOG_DIR:-$PWD/logs}"
+mkdir -p "$LOG_DIR"
+
 _log_ts() { date +"%Y-%m-%d %H:%M:%S"; }
 _log_use_color() { [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; }
 _log_color() {
@@ -8,27 +11,29 @@ _log_color() {
   fi
 }
 
+_log_emit() {
+  local level="$1"
+  local color="$2"
+  local logfile="$3"
+  local message="$4"
+  local ts reset line
+
+  ts="$(_log_ts)"
+  reset="$(_log_color "\033[0m")"
+  line="$ts ${color}${level}${reset} $message"
+  echo -e "$line"
+  printf '%s %s %s\n' "$ts" "$level" "$message" >> "$LOG_DIR/$logfile"
+}
+
 log_info() {
-  local c_reset c_info
-  c_info="$(_log_color "\033[1;34m")"
-  c_reset="$(_log_color "\033[0m")"
-  echo -e "$(_log_ts) ${c_info}[INFO]${c_reset} $1"
+  _log_emit "[INFO]" "$(_log_color "\033[1;34m")" "info.log" "$1"
 }
 log_warn() {
-  local c_reset c_warn
-  c_warn="$(_log_color "\033[1;33m")"
-  c_reset="$(_log_color "\033[0m")"
-  echo -e "$(_log_ts) ${c_warn}[WARN]${c_reset} $1"
+  _log_emit "[WARN]" "$(_log_color "\033[1;33m")" "warn.log" "$1"
 }
 log_error() {
-  local c_reset c_err
-  c_err="$(_log_color "\033[1;31m")"
-  c_reset="$(_log_color "\033[0m")"
-  echo -e "$(_log_ts) ${c_err}[ERROR]${c_reset} $1"
+  _log_emit "[ERROR]" "$(_log_color "\033[1;31m")" "error.log" "$1"
 }
 log_success() {
-  local c_reset c_ok
-  c_ok="$(_log_color "\033[1;32m")"
-  c_reset="$(_log_color "\033[0m")"
-  echo -e "$(_log_ts) ${c_ok}[SUCCESS]${c_reset} $1"
+  _log_emit "[SUCCESS]" "$(_log_color "\033[1;32m")" "success.log" "$1"
 }

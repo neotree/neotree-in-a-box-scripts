@@ -1,3 +1,8 @@
+# Before running the commands below, make the `deploy` folder executable:
+```bash
+chmod -R +x deploy
+```
+
 # neotree-in-a-box-scripts
 
 Deployment helper scripts for the Neotree stack. Each component has a self-contained deployer under `deploy/` and a shared logging/checks library in `deploy/lib/`.
