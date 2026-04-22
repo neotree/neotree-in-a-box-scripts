@@ -136,7 +136,7 @@ required_db_vars_present() {
 }
 
 prompt_db_values() {
-  NEOTREE_SERVER_TYPE="$(prompt_required "NEOTREE_SERVER_TYPE (production | stage | development)" "${PNEOTREE_SERVER_TYPET:production}")"
+  NEOTREE_SERVER_TYPE="$(prompt_required "NEOTREE_SERVER_TYPE (production | stage | development)" "${NEOTREE_SERVER_TYPE:-production}")"
   NODE_ENV="$(prompt_required "NODE_ENV" "${NODE_ENV:production}")"
   NEOTREE_ENV="$(prompt_required "NEOTREE_ENV" "${NEOTREE_ENV:-}")"
   HOSTNAME="$(prompt_required "HOSTNAME (development | stage | demo | production)" "${HOSTNAME:production}")"
