@@ -28,6 +28,8 @@ bash deploy/deploy.sh
 ```
 - Runs node-api, webeditor, datapipeline, then metabase.
 - Logs per component are written to `deploy/<component>/logs/deploy_YYYYMMDD_HHMMSS.log`.
+- Progress is saved under `deploy/state/`. Re-running `deploy/deploy.sh` resumes from the next unfinished phase/component instead of restarting completed work.
+- Set `FORCE_DEPLOY=1` to clear saved progress for the components you rerun and execute them from scratch.
 
 ## Run a single component
 ```bash
@@ -36,6 +38,13 @@ bash deploy/webeditor/deploy.sh
 bash deploy/datapipeline/deploy.sh
 bash deploy/metabase/deploy.sh
 ```
+
+## Full cleanup
+```bash
+bash sensitive/undeploy.sh
+```
+- Removes the Neotree app tree at `~/neotree`, deploy progress state, Metabase service files, nginx configs/certs, PM2 state, and the system packages installed by these deployers.
+- The script is destructive by design and asks for confirmation before removing packages and directories.
 
 ## Datapipeline config flow
 - After cloning, `deploy/datapipeline/phases/03_config_setup.sh` ensures `conf/local/database.ini` and `conf/local/hospitals.ini` exist.

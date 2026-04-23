@@ -4,6 +4,7 @@ set -euo pipefail
 NEOTREE_BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$NEOTREE_BASE_DIR/lib/log.sh"
 source "$NEOTREE_BASE_DIR/lib/checks.sh"
+source "$NEOTREE_BASE_DIR/lib/progress.sh"
 
 NEOTREE_LOG_DIR="$NEOTREE_BASE_DIR/logs"
 mkdir -p "$NEOTREE_LOG_DIR"
@@ -13,9 +14,25 @@ trap 'log_error "Deployment failed at line $LINENO. See $NEOTREE_RUN_LOG"; exit 
 
 log_info "Deploy log: $NEOTREE_RUN_LOG"
 
-bash "$NEOTREE_BASE_DIR/node-api/deploy.sh"
-bash "$NEOTREE_BASE_DIR/webeditor/deploy.sh"
-bash "$NEOTREE_BASE_DIR/datapipeline/deploy.sh"
-bash "$NEOTREE_BASE_DIR/metabase/deploy.sh"
+run_component() {
+  local component="$1"
+  local script_path="$2"
+
+  progress_prepare_component_run "$component"
+
+  if progress_is_component_complete "$component"; then
+    log_info "Skipping $component deployment; already completed in a previous run"
+    return 0
+  fi
+
+  log_info "Starting component: $component"
+  bash "$script_path"
+  log_success "Component succeeded: $component"
+}
+
+run_component "node-api" "$NEOTREE_BASE_DIR/node-api/deploy.sh"
+run_component "webeditor" "$NEOTREE_BASE_DIR/webeditor/deploy.sh"
+run_component "datapipeline" "$NEOTREE_BASE_DIR/datapipeline/deploy.sh"
+run_component "metabase" "$NEOTREE_BASE_DIR/metabase/deploy.sh"
 
 log_success "Neotree deployment completed successfully"

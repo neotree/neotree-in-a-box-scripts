@@ -4,6 +4,7 @@ set -euo pipefail
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$BASE_DIR/../lib/log.sh"
 source "$BASE_DIR/../lib/checks.sh"
+source "$BASE_DIR/../lib/progress.sh"
 
 LOG_DIR="$BASE_DIR/logs"
 mkdir -p "$LOG_DIR"
@@ -24,9 +25,18 @@ export JAVA_PACKAGE="${MB_JAVA_PACKAGE:-openjdk-17-jre-headless}"
 export APP_ROOT="${APP_ROOT:-$HOME/neotree}"
 export NODE_ENV_FILE="${NODE_ENV_FILE:-$APP_ROOT/node-api/.env}"
 
-bash "$BASE_DIR/phases/01_preflight.sh"
-bash "$BASE_DIR/phases/02_prepare_app.sh"
-bash "$BASE_DIR/phases/03_systemd.sh"
-bash "$BASE_DIR/phases/04_nginx_setup.sh"
+COMPONENT_NAME="metabase"
+progress_prepare_component_run "$COMPONENT_NAME"
+
+if progress_is_component_complete "$COMPONENT_NAME"; then
+  log_info "Skipping $COMPONENT_NAME deployment; already completed in a previous run"
+  exit 0
+fi
+
+run_tracked_phase "$COMPONENT_NAME" "01_preflight" "$BASE_DIR/phases/01_preflight.sh" "Preflight checks"
+run_tracked_phase "$COMPONENT_NAME" "02_prepare_app" "$BASE_DIR/phases/02_prepare_app.sh" "Prepare application"
+run_tracked_phase "$COMPONENT_NAME" "03_systemd" "$BASE_DIR/phases/03_systemd.sh" "Systemd setup"
+run_tracked_phase "$COMPONENT_NAME" "04_nginx_setup" "$BASE_DIR/phases/04_nginx_setup.sh" "Nginx setup"
+progress_mark_component_complete "$COMPONENT_NAME"
 
 log_success "Metabase deployment completed successfully"
