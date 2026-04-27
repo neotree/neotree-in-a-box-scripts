@@ -16,6 +16,23 @@ confirm() {
   esac
 }
 
+confirm_with_back() {
+  if [ "${AUTO_YES:-0}" = "1" ]; then
+    log_info "$1 [y/n/b]: y (AUTO_YES=1)"
+    return 0
+  fi
+  if [ ! -t 0 ]; then
+    log_error "Non-interactive shell. Set AUTO_YES=1 to proceed."
+    return 1
+  fi
+  read -p "$1 [y/n/b]: " yn
+  case $yn in
+    [Yy]*) return 0 ;;
+    [Bb]*) return 2 ;;
+    *) return 1 ;;
+  esac
+}
+
 confirm_or_exit() {
   if ! confirm "$1"; then
     log_error "User declined. Exiting."

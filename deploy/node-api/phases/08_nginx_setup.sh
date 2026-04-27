@@ -37,58 +37,85 @@ if [ "${SKIP_NGINX_SETUP:-0}" = "1" ]; then
   exit 0
 fi
 
-if ! confirm "Configure nginx reverse proxy for Node API now?"; then
-  log_info "Skipping nginx setup"
-  exit 0
-fi
-
-ensure_cmd nginx nginx
-
-SERVER_PORT="3000"
-if [ -f "$ENV_FILE" ]; then
-  dotenv_read_var "$ENV_FILE" SERVER_PORT "3000"
-  SERVER_PORT="${SERVER_PORT:-3000}"
-fi
-
-server_name_input="$(prompt "Node API domain (leave blank to use server public IP)" "$NGINX_SERVER_NAME")"
-if [ -z "$server_name_input" ]; then
-  NGINX_SERVER_NAME="$(detect_public_ip)"
-  log_info "Using detected IP as server_name: $NGINX_SERVER_NAME"
-else
-  NGINX_SERVER_NAME="$server_name_input"
-fi
-
+setup_step="confirm"
 USE_TLS=0
 CERT_PATH=""
 KEY_PATH=""
 SSL_DIR="/etc/ssl/neotree"
 CRT_NAME="${NGINX_SITE_NAME}.crt"
 KEY_NAME="${NGINX_SITE_NAME}.key"
+SERVER_PORT="3000"
 
-if confirm "Configure TLS with existing certificate files now?"; then
-  USE_TLS=1
-  while true; do
-    CERT_PATH="$(prompt "Path to fullchain certificate file" "$SSL_DIR/$CRT_NAME")"
-    KEY_PATH="$(prompt "Path to private key file" "$SSL_DIR/$KEY_NAME")"
-    if [ -f "$CERT_PATH" ] && [ -f "$KEY_PATH" ]; then
-      break
-    fi
-    log_warn "Files not found. Please provide valid paths."
-  done
+while true; do
+  case "$setup_step" in
+    confirm)
+      if confirm_with_back "Configure nginx reverse proxy for Node API now? Press b to stay on this step."; then
+        setup_step="server_name"
+      else
+        case $? in
+          2)
+            log_warn "Already at the first nginx setup step"
+            continue
+            ;;
+          *)
+            log_info "Skipping nginx setup"
+            exit 0
+            ;;
+        esac
+      fi
+      ;;
+    server_name)
+      ensure_cmd nginx nginx
 
-  log_info "Staging certificates under $SSL_DIR"
-  sudo mkdir -p "$SSL_DIR"
-  sudo cp "$CERT_PATH" "$SSL_DIR/$CRT_NAME"
-  sudo cp "$KEY_PATH" "$SSL_DIR/$KEY_NAME"
-  sudo chown root:root "$SSL_DIR/$CRT_NAME" "$SSL_DIR/$KEY_NAME"
-  sudo chmod 600 "$SSL_DIR/$KEY_NAME"
-fi
+      if [ -f "$ENV_FILE" ]; then
+        dotenv_read_var "$ENV_FILE" SERVER_PORT "3000"
+        SERVER_PORT="${SERVER_PORT:-3000}"
+      fi
 
-SITE_FILE="/etc/nginx/sites-available/${NGINX_SITE_NAME}.conf"
-ENABLED_FILE="/etc/nginx/sites-enabled/${NGINX_SITE_NAME}.conf"
+      server_name_input="$(prompt "Node API domain (leave blank to use server public IP)" "$NGINX_SERVER_NAME")"
+      if [ -z "$server_name_input" ]; then
+        NGINX_SERVER_NAME="$(detect_public_ip)"
+        log_info "Using detected IP as server_name: $NGINX_SERVER_NAME"
+      else
+        NGINX_SERVER_NAME="$server_name_input"
+      fi
+      setup_step="tls"
+      ;;
+    tls)
+      if confirm_with_back "Configure TLS with existing certificate files now? Press b to go back to the previous step."; then
+        USE_TLS=1
+        while true; do
+          CERT_PATH="$(prompt "Path to fullchain certificate file" "$SSL_DIR/$CRT_NAME")"
+          KEY_PATH="$(prompt "Path to private key file" "$SSL_DIR/$KEY_NAME")"
+          if [ -f "$CERT_PATH" ] && [ -f "$KEY_PATH" ]; then
+            break
+          fi
+          log_warn "Files not found. Please provide valid paths."
+        done
 
-log_info "Writing nginx config to $SITE_FILE"
-if [ "$USE_TLS" -eq 1 ]; then
+        log_info "Staging certificates under $SSL_DIR"
+        sudo mkdir -p "$SSL_DIR"
+        sudo cp "$CERT_PATH" "$SSL_DIR/$CRT_NAME"
+        sudo cp "$KEY_PATH" "$SSL_DIR/$KEY_NAME"
+        sudo chown root:root "$SSL_DIR/$CRT_NAME" "$SSL_DIR/$KEY_NAME"
+        sudo chmod 600 "$SSL_DIR/$KEY_NAME"
+      else
+        case $? in
+          2)
+            log_info "Returning to server name selection"
+            setup_step="server_name"
+            continue
+            ;;
+        esac
+      fi
+      setup_step="write"
+      ;;
+    write)
+      SITE_FILE="/etc/nginx/sites-available/${NGINX_SITE_NAME}.conf"
+      ENABLED_FILE="/etc/nginx/sites-enabled/${NGINX_SITE_NAME}.conf"
+
+      log_info "Writing nginx config to $SITE_FILE"
+      if [ "$USE_TLS" -eq 1 ]; then
 sudo tee "$SITE_FILE" >/dev/null <<EOF
 upstream nodeapi_local {
   server 127.0.0.1:${SERVER_PORT};
@@ -119,7 +146,7 @@ server {
   }
 }
 EOF
-else
+      else
 sudo tee "$SITE_FILE" >/dev/null <<EOF
 upstream nodeapi_local {
   server 127.0.0.1:${SERVER_PORT};
@@ -141,20 +168,24 @@ server {
   }
 }
 EOF
-fi
+      fi
 
-if [ ! -L "$ENABLED_FILE" ]; then
-  sudo ln -s "$SITE_FILE" "$ENABLED_FILE"
-fi
+      if [ ! -L "$ENABLED_FILE" ]; then
+        sudo ln -s "$SITE_FILE" "$ENABLED_FILE"
+      fi
 
-if [ -L "/etc/nginx/sites-enabled/default" ]; then
-  sudo rm -f /etc/nginx/sites-enabled/default
-fi
+      if [ -L "/etc/nginx/sites-enabled/default" ]; then
+        sudo rm -f /etc/nginx/sites-enabled/default
+      fi
 
-sudo nginx -t
-sudo systemctl reload nginx
+      sudo nginx -t
+      sudo systemctl reload nginx
 
-log_success "nginx configured for ${NGINX_SERVER_NAME} -> 127.0.0.1:${SERVER_PORT}"
-if [ "$USE_TLS" -eq 1 ]; then
-  log_success "TLS enabled; certs staged under $SSL_DIR"
-fi
+      log_success "nginx configured for ${NGINX_SERVER_NAME} -> 127.0.0.1:${SERVER_PORT}"
+      if [ "$USE_TLS" -eq 1 ]; then
+        log_success "TLS enabled; certs staged under $SSL_DIR"
+      fi
+      break
+      ;;
+  esac
+done

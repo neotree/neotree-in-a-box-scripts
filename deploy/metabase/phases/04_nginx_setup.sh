@@ -35,34 +35,52 @@ if [ -z "$server_name" ]; then
   log_info "Using detected IP as server_name: $server_name"
 fi
 
+setup_step="tls"
 USE_TLS=0
 CERT_PATH=""
 KEY_PATH=""
 SSL_DIR="/etc/ssl/neotree"
 
-if confirm "Configure TLS with existing certificate files now?"; then
-  USE_TLS=1
-  while true; do
-    CERT_PATH="$(prompt "Path to fullchain certificate file" "$SSL_DIR/${SERVICE_NAME}.crt")"
-    KEY_PATH="$(prompt "Path to private key file" "$SSL_DIR/${SERVICE_NAME}.key")"
-    if [ -f "$CERT_PATH" ] && [ -f "$KEY_PATH" ]; then
-      break
-    fi
-    log_warn "Files not found. Please provide valid paths."
-  done
+while true; do
+  case "$setup_step" in
+    tls)
+      if confirm_with_back "Configure TLS with existing certificate files now? Press b to go back to the previous step."; then
+        USE_TLS=1
+        while true; do
+          CERT_PATH="$(prompt "Path to fullchain certificate file" "$SSL_DIR/${SERVICE_NAME}.crt")"
+          KEY_PATH="$(prompt "Path to private key file" "$SSL_DIR/${SERVICE_NAME}.key")"
+          if [ -f "$CERT_PATH" ] && [ -f "$KEY_PATH" ]; then
+            break
+          fi
+          log_warn "Files not found. Please provide valid paths."
+        done
 
-  log_info "Staging certificates under $SSL_DIR"
-  sudo mkdir -p "$SSL_DIR"
-  sudo cp "$CERT_PATH" "$SSL_DIR/${SERVICE_NAME}.crt"
-  sudo cp "$KEY_PATH" "$SSL_DIR/${SERVICE_NAME}.key"
-  sudo chown root:root "$SSL_DIR/${SERVICE_NAME}.crt" "$SSL_DIR/${SERVICE_NAME}.key"
-  sudo chmod 600 "$SSL_DIR/${SERVICE_NAME}.key"
-fi
+        log_info "Staging certificates under $SSL_DIR"
+        sudo mkdir -p "$SSL_DIR"
+        sudo cp "$CERT_PATH" "$SSL_DIR/${SERVICE_NAME}.crt"
+        sudo cp "$KEY_PATH" "$SSL_DIR/${SERVICE_NAME}.key"
+        sudo chown root:root "$SSL_DIR/${SERVICE_NAME}.crt" "$SSL_DIR/${SERVICE_NAME}.key"
+        sudo chmod 600 "$SSL_DIR/${SERVICE_NAME}.key"
+      else
+        case $? in
+          2)
+            log_info "Returning to server name selection"
+            server_name="$(prompt "Metabase domain (leave blank to use server public IP)" "$server_name")"
+            if [ -z "$server_name" ]; then
+              server_name="$(detect_public_ip)"
+              log_info "Using detected IP as server_name: $server_name"
+            fi
+            continue
+            ;;
+        esac
+      fi
+      setup_step="write"
+      ;;
+    write)
+      SITE_FILE="/etc/nginx/sites-available/${SERVICE_NAME}.conf"
 
-SITE_FILE="/etc/nginx/sites-available/${SERVICE_NAME}.conf"
-
-log_info "Writing nginx config to $SITE_FILE"
-if [ "$USE_TLS" -eq 1 ]; then
+      log_info "Writing nginx config to $SITE_FILE"
+      if [ "$USE_TLS" -eq 1 ]; then
   sudo tee "$SITE_FILE" >/dev/null <<EOF
 upstream metabase_local {
   server 127.0.0.1:${MB_PORT};
@@ -90,7 +108,7 @@ server {
   }
 }
 EOF
-else
+      else
   sudo tee "$SITE_FILE" >/dev/null <<EOF
 upstream metabase_local {
   server 127.0.0.1:${MB_PORT};
@@ -109,17 +127,21 @@ server {
   }
 }
 EOF
-fi
+      fi
 
-sudo ln -sf "$SITE_FILE" "/etc/nginx/sites-enabled/${SERVICE_NAME}.conf"
+      sudo ln -sf "$SITE_FILE" "/etc/nginx/sites-enabled/${SERVICE_NAME}.conf"
 
-log_info "Testing nginx configuration"
-sudo nginx -t
+      log_info "Testing nginx configuration"
+      sudo nginx -t
 
-log_info "Reloading nginx"
-sudo systemctl reload nginx
+      log_info "Reloading nginx"
+      sudo systemctl reload nginx
 
-log_success "Nginx configured for Metabase at http://${server_name}"
-if [ "$USE_TLS" -eq 1 ]; then
-  log_success "TLS enabled; certificate staged under $SSL_DIR"
-fi
+      log_success "Nginx configured for Metabase at http://${server_name}"
+      if [ "$USE_TLS" -eq 1 ]; then
+        log_success "TLS enabled; certificate staged under $SSL_DIR"
+      fi
+      break
+      ;;
+  esac
+done

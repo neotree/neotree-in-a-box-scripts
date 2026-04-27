@@ -56,6 +56,23 @@ confirm() {
   esac
 }
 
+confirm_with_back() {
+  if [ "${AUTO_YES:-0}" = "1" ]; then
+    log_info "$1 [y/n/b]: y (AUTO_YES=1)"
+    return 0
+  fi
+  if [ ! -t 0 ]; then
+    log_error "Non-interactive shell. Set AUTO_YES=1 to proceed."
+    return 1
+  fi
+  read -p "$1 [y/n/b]: " yn
+  case $yn in
+    [Yy]*) return 0 ;;
+    [Bb]*) return 2 ;;
+    *) return 1 ;;
+  esac
+}
+
 require_simple_ident() {
   local label="$1"
   local value="$2"
@@ -127,31 +144,31 @@ required_db_vars_present() {
     [ -n "${HOSTNAME:-}" ] &&
     [ -n "${PORT:-}" ] &&
     [ -n "${API_KEY:-}" ] &&
-    [ -n "${POSTGRES_DB_URL:-}" ]
+    [ -n "${POSTGRES_DB_URL:-}" ] &&
     [ -n "${NEXT_PUBLIC_APP_NAME:-}" ] &&
-    [ -n "${NEXT_PUBLIC_APP_URL:-}" ]
+    [ -n "${NEXT_PUBLIC_APP_URL:-}" ] &&
     [ -n "${NEXTAUTH_URL:-}" ] &&
-    [ -n "${NEXTAUTH_SECRET:-}" ]
+    [ -n "${NEXTAUTH_SECRET:-}" ] &&
     [ -n "${JWT_SECRET:-}" ]
 }
 
 prompt_db_values() {
   NEOTREE_SERVER_TYPE="$(prompt_required "NEOTREE_SERVER_TYPE (production | stage | development)" "${NEOTREE_SERVER_TYPE:-production}")"
-  NODE_ENV="$(prompt_required "NODE_ENV" "${NODE_ENV:production}")"
+  NODE_ENV="$(prompt_required "NODE_ENV" "${NODE_ENV:-production}")"
   NEOTREE_ENV="$(prompt_required "NEOTREE_ENV" "${NEOTREE_ENV:-}")"
-  HOSTNAME="$(prompt_required "HOSTNAME (development | stage | demo | production)" "${HOSTNAME:production}")"
-  PORT="$(prompt_required "PORT" "${PORT:3000}")"
+  HOSTNAME="$(prompt_required "HOSTNAME (development | stage | demo | production)" "${HOSTNAME:-production}")"
+  PORT="$(prompt_required "PORT" "${PORT:-3000}")"
   API_KEY="$(prompt_required "API_KEY" "${API_KEY:-}")"
   POSTGRES_DB_URL="$(prompt_required "POSTGRES_DB_URL (postgres://<dbuser>:<dbpass>@localhost:5432/<dbname>)" "${POSTGRES_DB_URL:-}")"
-  NEXT_PUBLIC_APP_NAME="$(prompt_required "NEXT_PUBLIC_APP_NAME" "${NEXT_PUBLIC_APP_NAME:-}")"
-  NEXT_PUBLIC_APP_URL="$(prompt_required "NEXT_PUBLIC_APP_URL" "${NEXT_PUBLIC_APP_URL:Neotree}")"
-  NEXTAUTH_URL="$(prompt_required "NEXTAUTH_URL" "${NEXTAUTH_URL:http://localhost:3000}")"
+  NEXT_PUBLIC_APP_NAME="$(prompt_required "NEXT_PUBLIC_APP_NAME" "${NEXT_PUBLIC_APP_NAME:-Neotree}")"
+  NEXT_PUBLIC_APP_URL="$(prompt_required "NEXT_PUBLIC_APP_URL" "${NEXT_PUBLIC_APP_URL:-http://localhost:3000}")"
+  NEXTAUTH_URL="$(prompt_required "NEXTAUTH_URL" "${NEXTAUTH_URL:-http://localhost:3000}")"
   NEXTAUTH_SECRET="$(prompt_required "NEXTAUTH_SECRET" "${NEXTAUTH_SECRET:-}")"
   JWT_SECRET="$(prompt_required "JWT_SECRET" "${JWT_SECRET:-}")"
 }
 
 prompt_email_values() {
-  if confirm "Configure email server variables now?"; then
+  if confirm_with_back "Configure email server variables now? Press b to go back to the previous step."; then
     MAIL_MAILER="$(prompt_required "MAIL_MAILER (e.g. smtp)" "${MAIL_MAILER:-}")"
     MAIL_HOST="$(prompt_required "MAIL_HOST" "${MAIL_HOST:-}")"
     MAIL_PORT="$(prompt_required "MAIL_PORT" "${MAIL_PORT:-587}")"
@@ -172,8 +189,12 @@ prompt_email_values() {
     MAIL_FROM_ADDRESS="$(prompt_required "MAIL_FROM_ADDRESS" "${MAIL_FROM_ADDRESS:-}")"
     MAIL_FROM_NAME="$(prompt_required "MAIL_FROM_NAME" "${MAIL_FROM_NAME:-}")"
     MAIL_RECEIVERS="$(prompt_required "MAIL_RECEIVERS (comma-separated)" "${MAIL_RECEIVERS:-}")"
+    return 0
   else
-    log_warn "Skipping email configuration"
+    case $? in
+      2) return 2 ;;
+      *) log_warn "Skipping email configuration"; return 1 ;;
+    esac
   fi
 }
 
@@ -226,9 +247,96 @@ SQL
   validate_db_creds
 }
 
-log_info "Configuring environment variables"
+run_interactive_setup() {
+  local stage="${1:-db}"
+  local rc retry_rc
+
+  while true; do
+    case "$stage" in
+      db)
+        prompt_db_values
+        stage="email"
+        ;;
+      email)
+        prompt_email_values
+        rc=$?
+        case "$rc" in
+          0|1) stage="provision" ;;
+          2) log_info "Returning to database values"; stage="db" ;;
+        esac
+        ;;
+      provision)
+        if confirm_with_back "Create PostgreSQL user and database now? (requires sudo postgres access). Press b to go back to the previous step."; then
+          if create_db_and_user; then
+            log_success "PostgreSQL user/database ensured"
+            stage="validate"
+          else
+            log_error "PostgreSQL provisioning failed"
+            exit 1
+          fi
+        else
+          case $? in
+            2)
+              log_info "Returning to email configuration"
+              stage="email"
+              ;;
+            *)
+              log_warn "Skipping PostgreSQL provisioning"
+              stage="validate"
+              ;;
+          esac
+        fi
+        ;;
+      validate)
+        if confirm_with_back "Validate database credentials now? Press b to go back to the previous step."; then
+          if validate_db_creds; then
+            log_success "Database credentials are valid"
+            break
+          fi
+          log_error "Database credential validation failed"
+          if confirm_with_back "Attempt to create/update PostgreSQL user/database with provided creds? Press b to go back to the previous step."; then
+            if create_db_and_user; then
+              log_success "PostgreSQL user/database ensured"
+              if validate_db_creds; then
+                log_success "Database credentials are valid"
+                break
+              fi
+              log_error "Database credential validation failed after provisioning"
+              exit 1
+            else
+              log_error "PostgreSQL provisioning failed"
+              exit 1
+            fi
+          else
+            case $? in
+              2)
+                log_info "Returning to PostgreSQL provisioning"
+                stage="provision"
+                ;;
+              *)
+                exit 1
+                ;;
+            esac
+          fi
+        else
+          case $? in
+            2)
+              log_info "Returning to PostgreSQL provisioning"
+              stage="provision"
+              ;;
+            *)
+              log_warn "Skipping database credential validation"
+              break
+              ;;
+          esac
+        fi
+        ;;
+    esac
+  done
+}
 
 WRITE_ENV=0
+START_STAGE="provision"
 
 if [ -f "$ENV_FILE" ]; then
   log_info ".env found at $ENV_FILE"
@@ -236,18 +344,17 @@ if [ -f "$ENV_FILE" ]; then
   if required_db_vars_present; then
     log_success "Existing .env already has required DB settings."
     if confirm "Edit existing .env values?"; then
-      prompt_db_values
-      prompt_email_values
       WRITE_ENV=1
+      START_STAGE="db"
     else
       log_info "Keeping existing .env values"
+      START_STAGE="provision"
     fi
   else
     log_warn ".env is missing required DB settings."
     if confirm "Edit .env and complete required values now?"; then
-      prompt_db_values
-      prompt_email_values
       WRITE_ENV=1
+      START_STAGE="db"
     else
       log_error "Cannot proceed without required database variables"
       exit 1
@@ -273,11 +380,12 @@ else
   if [ ! -f "$EXAMPLE_FILE" ]; then
     log_warn ".env-example not found. Proceeding with interactive setup."
   fi
-
-  prompt_db_values
-  prompt_email_values
   WRITE_ENV=1
+  START_STAGE="db"
 fi
+
+log_info "Configuring environment variables"
+run_interactive_setup "$START_STAGE"
 
 if ! required_db_vars_present; then
   log_error "Required database variables are missing."
@@ -288,41 +396,4 @@ if [ "$WRITE_ENV" -eq 1 ]; then
   write_env_file "$ENV_FILE"
   chmod 600 "$ENV_FILE"
   log_success ".env updated at $ENV_FILE"
-fi
-
-if confirm "Create PostgreSQL user and database now? (requires sudo postgres access)"; then
-  if create_db_and_user; then
-    log_success "PostgreSQL user/database ensured"
-  else
-    log_error "PostgreSQL provisioning failed"
-    exit 1
-  fi
-else
-  log_warn "Skipping PostgreSQL provisioning"
-fi
-
-if confirm "Validate database credentials now?"; then
-  if validate_db_creds; then
-    log_success "Database credentials are valid"
-  else
-    log_error "Database credential validation failed"
-    if confirm "Attempt to create/update PostgreSQL user/database with provided creds?"; then
-      if create_db_and_user; then
-        log_success "PostgreSQL user/database ensured"
-        if validate_db_creds; then
-          log_success "Database credentials are valid"
-        else
-          log_error "Database credential validation failed after provisioning"
-          exit 1
-        fi
-      else
-        log_error "PostgreSQL provisioning failed"
-        exit 1
-      fi
-    else
-      exit 1
-    fi
-  fi
-else
-  log_warn "Skipping database credential validation"
 fi

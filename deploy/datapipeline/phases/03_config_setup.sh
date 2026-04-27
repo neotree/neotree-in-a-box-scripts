@@ -78,31 +78,44 @@ if [ -f "$DB_FILE" ]; then
   fi
 fi
 
-DB_HOST="$(prompt "Database host" "$default_host")"
-DB_NAME="$(prompt "Database name" "$default_db")"
-DB_USER="$(prompt "Database user" "$default_user")"
-DB_PASSWORD="$(prompt_secret "Database password" "$default_password")"
+while true; do
+  DB_HOST="$(prompt "Database host" "$default_host")"
+  DB_NAME="$(prompt "Database name" "$default_db")"
+  DB_USER="$(prompt "Database user" "$default_user")"
+  DB_PASSWORD="$(prompt_secret "Database password" "$default_password")"
 
-country_input="$(prompt "Country (zimbabwe/malawi)" "$default_country")"
-country_input="$(lowercase "$country_input")"
-case "$country_input" in
-  zimbabwe|malawi)
-    DB_COUNTRY="$country_input"
-    ;;
-  *)
-    log_warn "Unknown country '$country_input', defaulting to zimbabwe"
-    DB_COUNTRY="zimbabwe"
-    ;;
-esac
+  country_input="$(prompt "Country (zimbabwe/malawi)" "$default_country")"
+  country_input="$(lowercase "$country_input")"
+  case "$country_input" in
+    zimbabwe|malawi)
+      DB_COUNTRY="$country_input"
+      ;;
+    *)
+      log_warn "Unknown country '$country_input', defaulting to zimbabwe"
+      DB_COUNTRY="zimbabwe"
+      ;;
+  esac
 
-DATA_FIX="$(prompt "Enable data_fix (True/False)" "True")"
+  DATA_FIX="$(prompt "Enable data_fix (True/False)" "True")"
 
-CONNECT_WEBEDITOR=0
-if confirm "Configure webeditor connection now?"; then
-  CONNECT_WEBEDITOR=1
-  WEBEDITOR_URL="$(prompt "Webeditor URL" "$default_webeditor")"
-  WEBEDITOR_API_KEY="$(prompt_secret "Webeditor API key" "$default_webeditor_key")"
-fi
+  CONNECT_WEBEDITOR=0
+  if confirm_with_back "Configure webeditor connection now? Press b to go back to the previous step."; then
+    CONNECT_WEBEDITOR=1
+    WEBEDITOR_URL="$(prompt "Webeditor URL" "$default_webeditor")"
+    WEBEDITOR_API_KEY="$(prompt_secret "Webeditor API key" "$default_webeditor_key")"
+    break
+  else
+    case $? in
+      2)
+        log_info "Returning to database settings"
+        continue
+        ;;
+      *)
+        break
+        ;;
+    esac
+  fi
+done
 
 backup_if_exists "$DB_FILE"
 cat > "$DB_FILE" <<EOF
