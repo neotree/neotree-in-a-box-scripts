@@ -164,7 +164,6 @@ remove_packages() {
   purge_package_if_installed "libpython3.8-stdlib"
   purge_package_if_installed "libpython3.8-minimal"
   purge_package_if_installed "software-properties-common"
-  purge_package_if_installed "git"
   purge_package_if_installed "curl"
 
   log_info "Running apt autoremove"
