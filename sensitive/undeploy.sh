@@ -39,6 +39,7 @@ NODE_API_SITE_NAME="${NODE_API_SITE_NAME:-neotree-node-api}"
 WEBEDITOR_SITE_NAME="${WEBEDITOR_SITE_NAME:-neotree-webeditor}"
 METABASE_SITE_NAME="${METABASE_SITE_NAME:-metabase}"
 DEPLOY_STATE_DIR="${DEPLOY_STATE_DIR:-$REPO_ROOT/deploy/state}"
+BACKUP_DIR="${BACKUP_DIR:-$REPO_ROOT/backups/postgresql}"
 
 log_info "Undeploy log: $RUN_LOG"
 log_warn "This script removes Neotree apps, services, configs, and packages from this machine."
@@ -149,6 +150,71 @@ cleanup_nginx() {
   remove_dir_if_present "$SSL_DIR"
 }
 
+run_backup_with_spinner() {
+  local message="$1"
+  local backup_file="$2"
+  local pid
+  local status
+  local spin='/-\|'
+  local i=0
+  local idx
+
+  (
+    set -o pipefail
+    sudo -u postgres pg_dumpall --clean --if-exists | gzip > "$backup_file"
+  ) &
+  pid=$!
+
+  while kill -0 "$pid" >/dev/null 2>&1; do
+    idx=$((i % ${#spin}))
+    printf '\r%s %s' "$message" "${spin:$idx:1}"
+    i=$((i + 1))
+    sleep 0.2
+  done
+
+  if wait "$pid"; then
+    printf '\r%s done\n' "$message"
+    return 0
+  fi
+
+  status=$?
+  printf '\r%s failed\n' "$message"
+  return "$status"
+}
+
+backup_postgresql() {
+  local backup_file
+
+  if ! command -v pg_dumpall >/dev/null 2>&1; then
+    log_warn "pg_dumpall not found; skipping PostgreSQL backup"
+    return 0
+  fi
+
+  if ! command -v gzip >/dev/null 2>&1; then
+    log_warn "gzip not found; skipping PostgreSQL backup"
+    return 0
+  fi
+
+  if ! pg_isready -q >/dev/null 2>&1; then
+    log_warn "PostgreSQL is not accepting connections; skipping PostgreSQL backup"
+    return 0
+  fi
+
+  mkdir -p "$BACKUP_DIR"
+  backup_file="$BACKUP_DIR/postgresql_$(date +%Y%m%d_%H%M%S).sql.gz"
+
+  log_info "Backing up PostgreSQL databases before undeploy"
+  log_info "Backup file: $backup_file"
+  sudo -v
+
+  if ! run_backup_with_spinner "Backing up PostgreSQL databases" "$backup_file"; then
+    log_error "PostgreSQL backup failed; aborting undeploy to preserve the current database state"
+    exit 1
+  fi
+
+  log_success "PostgreSQL backup completed: $backup_file"
+}
+
 cleanup_postgresql_state() {
   stop_and_disable_unit "postgresql.service"
   remove_dir_if_present "/var/lib/postgresql"
@@ -190,6 +256,7 @@ remove_packages() {
 cleanup_pm2
 cleanup_metabase
 cleanup_nginx
+backup_postgresql
 cleanup_postgresql_state
 cleanup_app_files
 remove_deadsnakes_ppa

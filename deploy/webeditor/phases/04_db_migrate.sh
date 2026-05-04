@@ -51,55 +51,263 @@ if [ "${DRY_RUN:-0}" = "1" ]; then
   log_warn "DRY_RUN=1 set. Listing SQL files only."
 fi
 
+PG_CONN="host=$PGHOST port=$PGPORT dbname=$PGDATABASE user=$PGUSER sslmode=$PGSSLMODE"
+
 PGPASSWORD="${PGPASSWORD:-}" psql -v ON_ERROR_STOP=1 \
-  "host=$PGHOST port=$PGPORT dbname=$PGDATABASE user=$PGUSER sslmode=$PGSSLMODE" \
+  "$PG_CONN" \
   -c "SELECT 1;" >/dev/null 2>&1 || {
     log_error "Cannot connect to database with provided credentials"
     exit 1
   }
 
 PGPASSWORD="${PGPASSWORD:-}" psql -v ON_ERROR_STOP=1 \
-  "host=$PGHOST port=$PGPORT dbname=$PGDATABASE user=$PGUSER sslmode=$PGSSLMODE" \
+  "$PG_CONN" \
   -c "CREATE TABLE IF NOT EXISTS schema_migrations (filename TEXT PRIMARY KEY, applied_at TIMESTAMPTZ DEFAULT now());" \
   2>&1 | tee -a "$LOG_FILE"
 
-mapfile -t files < <(find "$DB_DIR" -maxdepth 1 -type f -name "*.sql" | sort)
-if [ "${#files[@]}" -eq 0 ]; then
-  log_warn "No SQL files found in $DB_DIR"
-  exit 0
-fi
+migration_applied() {
+  local fname="$1"
+  local fname_escaped="${fname//\'/\'\'}"
 
-for file in "${files[@]}"; do
-  fname="$(basename "$file")"
-  fname_escaped="${fname//\'/\'\'}"
-
-  applied="$(PGPASSWORD="${PGPASSWORD:-}" psql -tAc \
+  PGPASSWORD="${PGPASSWORD:-}" psql -tAc \
     "SELECT 1 FROM schema_migrations WHERE filename='$fname_escaped' LIMIT 1;" \
-    "host=$PGHOST port=$PGPORT dbname=$PGDATABASE user=$PGUSER sslmode=$PGSSLMODE")"
+    "$PG_CONN"
+}
 
-  if [ "$applied" = "1" ]; then
+mark_migration_applied() {
+  local fname="$1"
+  local fname_escaped="${fname//\'/\'\'}"
+
+  PGPASSWORD="${PGPASSWORD:-}" psql -v ON_ERROR_STOP=1 \
+    "$PG_CONN" \
+    -c "INSERT INTO schema_migrations(filename) VALUES ('$fname_escaped') ON CONFLICT (filename) DO NOTHING;" \
+    2>&1 | tee -a "$LOG_FILE"
+}
+
+apply_sql_file() {
+  local file="$1"
+  local fname
+  fname="$(basename "$file")"
+
+  if [ "$(migration_applied "$fname")" = "1" ]; then
     log_info "Skipping $fname (already applied)"
-    continue
+    return 0
+  fi
+
+  if [ "$fname" = "demo_data.sql" ]; then
+    case "$(demo_data_state)" in
+      loaded)
+        log_info "Skipping $fname (demo data already present)"
+        mark_migration_applied "$fname"
+        return 0
+        ;;
+      partial)
+        log_error "Some demo data is already present, but the seed appears incomplete. Refusing to re-apply $fname because it would duplicate rows."
+        log_error "Restore from backup or clean the WebEditor database before retrying."
+        exit 1
+        ;;
+    esac
   fi
 
   if [ "${DRY_RUN:-0}" = "1" ]; then
     log_info "Would apply $fname"
-    continue
+    return 0
   fi
 
   log_info "Applying $fname"
   PGPASSWORD="${PGPASSWORD:-}" psql -v ON_ERROR_STOP=1 \
-    "host=$PGHOST port=$PGPORT dbname=$PGDATABASE user=$PGUSER sslmode=$PGSSLMODE" \
+    "$PG_CONN" \
     -f "$file" 2>&1 | tee -a "$LOG_FILE"
   if [ "${PIPESTATUS[0]}" -ne 0 ]; then
     log_error "Failed on $fname. See $LOG_FILE"
     exit 1
   fi
 
+  mark_migration_applied "$fname"
+}
+
+demo_data_state() {
+  PGPASSWORD="${PGPASSWORD:-}" psql -tAc "
+    WITH seed_tables AS (
+      SELECT 'nt_hospitals'::text AS table_name, to_regclass('public.nt_hospitals') AS rel
+      UNION ALL SELECT 'nt_scripts', to_regclass('public.nt_scripts')
+      UNION ALL SELECT 'nt_data_keys', to_regclass('public.nt_data_keys')
+      UNION ALL SELECT 'nt_screens', to_regclass('public.nt_screens')
+    ),
+    counts AS (
+      SELECT table_name,
+             CASE
+               WHEN rel IS NULL THEN 0
+               ELSE (xpath('/row/count/text()', query_to_xml(format('SELECT count(*) FROM public.%I', table_name), false, true, '')))[1]::text::int
+             END AS row_count
+      FROM seed_tables
+    )
+    SELECT CASE
+      WHEN bool_and(row_count > 0) THEN 'loaded'
+      WHEN bool_or(row_count > 0) THEN 'partial'
+      ELSE 'empty'
+    END
+    FROM counts;" "$PG_CONN"
+}
+
+prompt_required() {
+  local var_name="$1"
+  local label="$2"
+  local value="${!var_name:-}"
+
+  if [ -n "$value" ]; then
+    return 0
+  fi
+
+  if [ ! -t 0 ]; then
+    log_error "Missing $var_name. Set it in the environment for non-interactive deployment."
+    exit 1
+  fi
+
+  while [ -z "$value" ]; do
+    read -r -p "$label: " value
+    if [ -z "$value" ]; then
+      log_error "$label is required."
+    fi
+  done
+
+  printf -v "$var_name" '%s' "$value"
+}
+
+prompt_password() {
+  if [ -n "${WEBEDITOR_ADMIN_PASSWORD:-}" ]; then
+    return 0
+  fi
+
+  if [ ! -t 0 ]; then
+    log_error "Missing WEBEDITOR_ADMIN_PASSWORD. Set it in the environment for non-interactive deployment."
+    exit 1
+  fi
+
+  local password_one=""
+  local password_two=""
+  while true; do
+    read -r -s -p "WebEditor admin password: " password_one
+    printf '\n'
+    read -r -s -p "Confirm WebEditor admin password: " password_two
+    printf '\n'
+
+    if [ -z "$password_one" ]; then
+      log_error "WebEditor admin password is required."
+    elif [ "$password_one" != "$password_two" ]; then
+      log_error "WebEditor admin passwords do not match."
+    else
+      WEBEDITOR_ADMIN_PASSWORD="$password_one"
+      return 0
+    fi
+  done
+}
+
+prompt_webeditor_admin() {
+  prompt_webeditor_admin_email
+  prompt_password
+  prompt_required WEBEDITOR_ADMIN_FIRST_NAME "WebEditor admin first name"
+  prompt_required WEBEDITOR_ADMIN_LAST_NAME "WebEditor admin last name"
+}
+
+prompt_webeditor_admin_email() {
+  prompt_required WEBEDITOR_ADMIN_EMAIL "WebEditor admin email"
+  while ! printf '%s' "$WEBEDITOR_ADMIN_EMAIL" | grep -Eq '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'; do
+    log_error "WebEditor admin username must be a valid email address."
+    WEBEDITOR_ADMIN_EMAIL=""
+    prompt_required WEBEDITOR_ADMIN_EMAIL "WebEditor admin email"
+  done
+}
+
+apply_sql_file_with_admin_vars() {
+  local file="$1"
+  local fname
+  fname="$(basename "$file")"
+
+  if [ "$(migration_applied "$fname")" = "1" ]; then
+    log_info "Skipping $fname (already applied)"
+    return 0
+  fi
+
+  if [ "${DRY_RUN:-0}" = "1" ]; then
+    log_info "Would apply $fname"
+    return 0
+  fi
+
+  log_info "Applying $fname"
   PGPASSWORD="${PGPASSWORD:-}" psql -v ON_ERROR_STOP=1 \
-    "host=$PGHOST port=$PGPORT dbname=$PGDATABASE user=$PGUSER sslmode=$PGSSLMODE" \
-    -c "INSERT INTO schema_migrations(filename) VALUES ('$fname_escaped');" \
-    2>&1 | tee -a "$LOG_FILE"
+    -v webeditor_admin_email="${WEBEDITOR_ADMIN_EMAIL:-}" \
+    -v webeditor_admin_password="${WEBEDITOR_ADMIN_PASSWORD:-}" \
+    -v webeditor_admin_first_name="${WEBEDITOR_ADMIN_FIRST_NAME:-}" \
+    -v webeditor_admin_last_name="${WEBEDITOR_ADMIN_LAST_NAME:-}" \
+    "$PG_CONN" \
+    -f "$file" 2>&1 | tee -a "$LOG_FILE"
+  if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+    log_error "Failed on $fname. See $LOG_FILE"
+    exit 1
+  fi
+
+  mark_migration_applied "$fname"
+}
+
+mapfile -t files < <(find "$DB_DIR" -maxdepth 1 -type f -name "[0-9][0-9][0-9]_*.sql" | sort)
+if [ "${#files[@]}" -eq 0 ]; then
+  log_warn "No numbered SQL migration files found in $DB_DIR"
+else
+  for file in "${files[@]}"; do
+    apply_sql_file "$file"
+  done
+fi
+
+special_files=(
+  "$DB_DIR/create_user.sql"
+  "$DB_DIR/demo_data.sql"
+  "$DB_DIR/replace_user_references.sql"
+)
+
+should_prompt_admin=0
+should_prompt_admin_email=0
+for file in "${special_files[@]}"; do
+  if [ -f "$file" ] && [ "$(migration_applied "$(basename "$file")")" != "1" ]; then
+    case "$(basename "$file")" in
+      create_user.sql)
+        should_prompt_admin=1
+        ;;
+      replace_user_references.sql)
+        should_prompt_admin_email=1
+        ;;
+    esac
+  fi
+done
+
+if [ "$should_prompt_admin" = "1" ]; then
+  if [ "${DRY_RUN:-0}" = "1" ]; then
+    log_info "Would prompt for WebEditor admin user details"
+  else
+    prompt_webeditor_admin
+  fi
+elif [ "$should_prompt_admin_email" = "1" ]; then
+  if [ "${DRY_RUN:-0}" = "1" ]; then
+    log_info "Would prompt for WebEditor admin email"
+  else
+    prompt_webeditor_admin_email
+  fi
+fi
+
+for file in "${special_files[@]}"; do
+  if [ ! -f "$file" ]; then
+    log_warn "Optional SQL file not found: $file"
+    continue
+  fi
+
+  case "$(basename "$file")" in
+    create_user.sql|replace_user_references.sql)
+      apply_sql_file_with_admin_vars "$file"
+      ;;
+    *)
+      apply_sql_file "$file"
+      ;;
+  esac
 done
 
 log_success "Database scripts completed successfully"

@@ -9,6 +9,10 @@
 deploy/node-api/logs/
 deploy/webeditor/logs/
 
+# Database dumps
+deploy/webeditor/database/db.sql
+backups/
+
 # Environment files
 .env
 *.env
