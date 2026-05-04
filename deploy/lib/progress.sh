@@ -21,11 +21,21 @@ progress_prepare_component_run() {
   local component="$1"
 
   if [ "${FORCE_DEPLOY:-0}" = "1" ]; then
-    rm -rf "$(_progress_component_dir "$component")"
+    progress_clear_component "$component"
     log_warn "FORCE_DEPLOY=1 set; cleared saved progress for $component"
   fi
 
   mkdir -p "$(_progress_component_dir "$component")/phases"
+}
+
+progress_has_component_state() {
+  local component="$1"
+  [ -d "$(_progress_component_dir "$component")" ]
+}
+
+progress_clear_component() {
+  local component="$1"
+  rm -rf "$(_progress_component_dir "$component")"
 }
 
 progress_is_component_complete() {

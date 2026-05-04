@@ -16,6 +16,14 @@ log_info "Starting Neotree Webeditor deployment"
 log_info "Deploy log: $RUN_LOG"
 
 COMPONENT_NAME="webeditor"
+APP_ROOT="${APP_ROOT:-$HOME/neotree}"
+APP_DIR="${APP_DIR:-$APP_ROOT/neotree-editor}"
+
+if [ ! -d "$APP_DIR" ] && progress_has_component_state "$COMPONENT_NAME"; then
+  log_warn "Saved progress found for $COMPONENT_NAME, but app directory is missing at $APP_DIR; clearing saved progress"
+  progress_clear_component "$COMPONENT_NAME"
+fi
+
 progress_prepare_component_run "$COMPONENT_NAME"
 
 if progress_is_component_complete "$COMPONENT_NAME"; then

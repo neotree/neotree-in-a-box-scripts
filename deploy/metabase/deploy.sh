@@ -26,6 +26,12 @@ export APP_ROOT="${APP_ROOT:-$HOME/neotree}"
 export NODE_ENV_FILE="${NODE_ENV_FILE:-$APP_ROOT/node-api/.env}"
 
 COMPONENT_NAME="metabase"
+
+if [ ! -f "$INSTALL_DIR/metabase.jar" ] && progress_has_component_state "$COMPONENT_NAME"; then
+  log_warn "Saved progress found for $COMPONENT_NAME, but Metabase is missing at $INSTALL_DIR; clearing saved progress"
+  progress_clear_component "$COMPONENT_NAME"
+fi
+
 progress_prepare_component_run "$COMPONENT_NAME"
 
 if progress_is_component_complete "$COMPONENT_NAME"; then

@@ -10,6 +10,23 @@ mkdir -p "$LOG_DIR"
 source "$REPO_ROOT/deploy/lib/log.sh"
 source "$REPO_ROOT/deploy/lib/checks.sh"
 
+clear_old_logs() {
+  local dir
+  for dir in \
+    "$REPO_ROOT/deploy/logs" \
+    "$REPO_ROOT/deploy/node-api/logs" \
+    "$REPO_ROOT/deploy/webeditor/logs" \
+    "$REPO_ROOT/deploy/datapipeline/logs" \
+    "$REPO_ROOT/deploy/metabase/logs" \
+    "$REPO_ROOT/sensitive/logs"
+  do
+    mkdir -p "$dir"
+    find "$dir" -type f -name '*.log' -delete 2>/dev/null || true
+  done
+}
+
+clear_old_logs
+
 RUN_LOG="$LOG_DIR/undeploy_$(date +%Y%m%d_%H%M%S).log"
 exec > >(tee -a "$RUN_LOG") 2>&1
 trap 'log_error "Undeploy failed at line $LINENO. See $RUN_LOG"; exit 1' ERR
@@ -142,7 +159,7 @@ cleanup_postgresql_state() {
 
 cleanup_app_files() {
   remove_home_dir_if_present "$APP_ROOT"
-  remove_home_dir_if_present "$DEPLOY_STATE_DIR"
+  remove_dir_if_present "$DEPLOY_STATE_DIR"
 }
 
 remove_packages() {

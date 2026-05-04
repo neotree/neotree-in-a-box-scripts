@@ -18,13 +18,6 @@ run_component() {
   local component="$1"
   local script_path="$2"
 
-  progress_prepare_component_run "$component"
-
-  if progress_is_component_complete "$component"; then
-    log_info "Skipping $component deployment; already completed in a previous run"
-    return 0
-  fi
-
   log_info "Starting component: $component"
   bash "$script_path"
   log_success "Component succeeded: $component"
