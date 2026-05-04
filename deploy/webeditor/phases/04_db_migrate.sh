@@ -87,7 +87,8 @@ mark_migration_applied() {
 apply_sql_file() {
   local file="$1"
   local fname
-  fname="$(basename "$file")"
+  local status
+  fname="$(migration_name_for_file "$file")"
 
   if [ "$(migration_applied "$fname")" = "1" ]; then
     log_info "Skipping $fname (already applied)"
@@ -115,10 +116,16 @@ apply_sql_file() {
   fi
 
   log_info "Applying $fname"
-  PGPASSWORD="${PGPASSWORD:-}" psql -v ON_ERROR_STOP=1 \
-    "$PG_CONN" \
-    -f "$file" 2>&1 | tee -a "$LOG_FILE"
-  if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+  if [[ "$file" == *.gz ]]; then
+    gzip -dc "$file" | PGPASSWORD="${PGPASSWORD:-}" psql -v ON_ERROR_STOP=1 "$PG_CONN" 2>&1 | tee -a "$LOG_FILE"
+    status=("${PIPESTATUS[@]}")
+  else
+    PGPASSWORD="${PGPASSWORD:-}" psql -v ON_ERROR_STOP=1 \
+      "$PG_CONN" \
+      -f "$file" 2>&1 | tee -a "$LOG_FILE"
+    status=("${PIPESTATUS[@]}")
+  fi
+  if [ "${status[0]}" -ne 0 ] || { [ "${#status[@]}" -gt 1 ] && [ "${status[1]}" -ne 0 ]; }; then
     log_error "Failed on $fname. See $LOG_FILE"
     exit 1
   fi
@@ -148,6 +155,12 @@ demo_data_state() {
       ELSE 'empty'
     END
     FROM counts;" "$PG_CONN"
+}
+
+migration_name_for_file() {
+  local fname
+  fname="$(basename "$1")"
+  printf '%s\n' "${fname%.gz}"
 }
 
 prompt_required() {
@@ -261,15 +274,15 @@ fi
 
 special_files=(
   "$DB_DIR/create_user.sql"
-  "$DB_DIR/demo_data.sql"
+  "$DB_DIR/demo_data.sql.gz"
   "$DB_DIR/replace_user_references.sql"
 )
 
 should_prompt_admin=0
 should_prompt_admin_email=0
 for file in "${special_files[@]}"; do
-  if [ -f "$file" ] && [ "$(migration_applied "$(basename "$file")")" != "1" ]; then
-    case "$(basename "$file")" in
+  if [ -f "$file" ] && [ "$(migration_applied "$(migration_name_for_file "$file")")" != "1" ]; then
+    case "$(migration_name_for_file "$file")" in
       create_user.sql)
         should_prompt_admin=1
         ;;
@@ -300,7 +313,7 @@ for file in "${special_files[@]}"; do
     continue
   fi
 
-  case "$(basename "$file")" in
+  case "$(migration_name_for_file "$file")" in
     create_user.sql|replace_user_references.sql)
       apply_sql_file_with_admin_vars "$file"
       ;;
