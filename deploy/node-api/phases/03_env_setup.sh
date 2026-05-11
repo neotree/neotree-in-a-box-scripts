@@ -7,6 +7,11 @@ APP_ROOT="${APP_ROOT:-$HOME/neotree}"
 APP_DIR="${APP_DIR:-$APP_ROOT/node-api}"
 ENV_FILE="${ENV_FILE:-$APP_DIR/.env}"
 EXAMPLE_FILE="${EXAMPLE_FILE:-$APP_DIR/.env-example}"
+DEFAULT_PGDATABASE="${NODE_API_DB_NAME:-node_api}"
+DEFAULT_PGUSER="${NEOTREE_DB_USER:-neotree_app}"
+DEFAULT_PGHOST="${NEOTREE_DB_HOST:-localhost}"
+DEFAULT_PGPORT="${NEOTREE_DB_PORT:-5432}"
+DEFAULT_SERVER_PORT="${NODE_API_PORT:-3000}"
 
 if [ ! -d "$APP_DIR" ]; then
   log_error "App directory not found: $APP_DIR"
@@ -82,6 +87,14 @@ require_simple_ident() {
   fi
 }
 
+generate_secret() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 24
+  else
+    od -An -N24 -tx1 /dev/urandom | tr -d ' \n'
+  fi
+}
+
 write_env_file() {
   local file="$1"
   {
@@ -142,31 +155,20 @@ reset_email_values() {
   MAIL_RECEIVERS=""
 }
 
-prompt_db_values() {
+auto_config_db_values() {
   WRITE_ENV=1
 
-  SERVER_PORT="$(prompt_required "SERVER_PORT" "${SERVER_PORT:-3000}")"
-  PGDATABASE="$(prompt_required "PGDATABASE" "${PGDATABASE:-}")"
-  PGUSER="$(prompt_required "PGUSER" "${PGUSER:-}")"
-
-  if [ -n "${PGPASSWORD:-}" ]; then
-    local old_pw new_pw
-    old_pw="$PGPASSWORD"
-    new_pw="$(prompt_secret "PGPASSWORD (press enter to keep existing)")"
-    PGPASSWORD="${new_pw:-$old_pw}"
-  else
-    PGPASSWORD="$(prompt_secret "PGPASSWORD")"
-    if [ -z "$PGPASSWORD" ]; then
-      log_error "PGPASSWORD is required."
-      exit 1
-    fi
-  fi
-
-  PGPORT="$(prompt_required "PGPORT" "${PGPORT:-5432}")"
-  PGHOST="$(prompt_required "PGHOST" "${PGHOST:-localhost}")"
+  SERVER_PORT="${SERVER_PORT:-$DEFAULT_SERVER_PORT}"
+  PGDATABASE="$DEFAULT_PGDATABASE"
+  PGUSER="$DEFAULT_PGUSER"
+  PGPASSWORD="${PGPASSWORD:-${NEOTREE_DB_PASSWORD:-$(generate_secret)}}"
+  PGPORT="${PGPORT:-$DEFAULT_PGPORT}"
+  PGHOST="${PGHOST:-$DEFAULT_PGHOST}"
 
   require_simple_ident "PGDATABASE" "$PGDATABASE"
   require_simple_ident "PGUSER" "$PGUSER"
+
+  log_info "Auto-configured node-api database '$PGDATABASE' with shared PostgreSQL user '$PGUSER'"
 }
 
 prompt_email_values() {
@@ -384,92 +386,39 @@ run_interactive_setup() {
   while true; do
     case "$stage" in
       db)
-        prompt_db_values
-        stage="email"
+        auto_config_db_values
+        stage="provision"
+        ;;
+      provision)
+        rc=0
+        create_db_and_user || rc=$?
+        if [ "$rc" -eq 0 ]; then
+          log_success "PostgreSQL shared user/database ensured"
+          stage="validate"
+        elif [ "$rc" -eq 2 ]; then
+          log_info "Returning to database values"
+          stage="db"
+        else
+          log_error "PostgreSQL provisioning failed"
+          exit 1
+        fi
+        ;;
+      validate)
+        if validate_db_creds; then
+          log_success "Database credentials are valid"
+          stage="email"
+          continue
+        fi
+        log_error "Database credential validation failed"
+        exit 1
         ;;
       email)
         rc=0
         prompt_email_values || rc=$?
         case "$rc" in
-          0|1) stage="provision" ;;
-          2) log_info "Returning to database values"; stage="db" ;;
+          0|1) break ;;
+          2) log_info "Returning to database validation"; stage="validate" ;;
         esac
-        ;;
-      provision)
-        if confirm_with_back "Create PostgreSQL user and database now? (requires sudo postgres access). Press b to go back to the previous step."; then
-          rc=0
-          create_db_and_user || rc=$?
-          if [ "$rc" -eq 0 ]; then
-            log_success "PostgreSQL user/database ensured"
-            stage="validate"
-          elif [ "$rc" -eq 2 ]; then
-            log_info "Returning to email configuration"
-            stage="email"
-          else
-            log_error "PostgreSQL provisioning failed"
-            exit 1
-          fi
-        else
-          case $? in
-            2)
-              log_info "Returning to email configuration"
-              stage="email"
-              ;;
-            *)
-              log_warn "Skipping PostgreSQL provisioning"
-              stage="validate"
-              ;;
-          esac
-        fi
-        ;;
-      validate)
-        if confirm_with_back "Validate database credentials now? Press b to go back to the previous step."; then
-          if validate_db_creds; then
-            log_success "Database credentials are valid"
-            break
-          fi
-          log_error "Database credential validation failed"
-          if confirm_with_back "Attempt to create/update PostgreSQL user/database with provided creds? Press b to go back to the previous step."; then
-            rc=0
-            create_db_and_user || rc=$?
-            if [ "$rc" -eq 0 ]; then
-              log_success "PostgreSQL user/database ensured"
-              if validate_db_creds; then
-                log_success "Database credentials are valid"
-                break
-              fi
-              log_error "Database credential validation failed after provisioning"
-              exit 1
-            elif [ "$rc" -eq 2 ]; then
-              log_info "Returning to PostgreSQL provisioning"
-              stage="provision"
-            else
-              log_error "PostgreSQL provisioning failed"
-              exit 1
-            fi
-          else
-            case $? in
-              2)
-                log_info "Returning to PostgreSQL provisioning"
-                stage="provision"
-                ;;
-              *)
-                exit 1
-                ;;
-            esac
-          fi
-        else
-          case $? in
-            2)
-              log_info "Returning to PostgreSQL provisioning"
-              stage="provision"
-              ;;
-            *)
-              log_warn "Skipping database credential validation"
-              break
-              ;;
-          esac
-        fi
         ;;
     esac
   done
@@ -481,25 +430,8 @@ START_STAGE="provision"
 if [ -f "$ENV_FILE" ]; then
   log_info ".env found at $ENV_FILE"
   load_env_from_file
-  if required_db_vars_present; then
-    log_success "Existing .env already has required DB settings."
-    if confirm "Edit existing .env values?"; then
-      WRITE_ENV=1
-      START_STAGE="db"
-    else
-      log_info "Keeping existing .env values"
-      START_STAGE="provision"
-    fi
-  else
-    log_warn ".env is missing required DB settings."
-    if confirm "Edit .env and complete required values now?"; then
-      WRITE_ENV=1
-      START_STAGE="db"
-    else
-      log_error "Cannot proceed without required database variables"
-      exit 1
-    fi
-  fi
+  WRITE_ENV=1
+  START_STAGE="db"
 else
   SERVER_PORT=""
   PGDATABASE=""

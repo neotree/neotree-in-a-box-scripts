@@ -9,15 +9,15 @@ MB_MEMORY="${MB_MEMORY:-1G}"
 MB_VERSION="${MB_VERSION:-1.57.0}"
 SERVICE_NAME="${SERVICE_NAME:-metabase}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/metabase}"
+MB_DATABASE="${MB_DATABASE:-metabase}"
 
 dotenv_get "$NODE_ENV_FILE" PGHOST || PGHOST=""
 dotenv_get "$NODE_ENV_FILE" PGPORT || PGPORT=""
-dotenv_get "$NODE_ENV_FILE" PGDATABASE || PGDATABASE=""
 dotenv_get "$NODE_ENV_FILE" PGUSER || PGUSER=""
 dotenv_get "$NODE_ENV_FILE" PGPASSWORD || PGPASSWORD=""
 
-if [ -z "$PGHOST" ] || [ -z "$PGPORT" ] || [ -z "$PGDATABASE" ] || [ -z "$PGUSER" ] || [ -z "$PGPASSWORD" ]; then
-  log_error "Missing PG* vars in $NODE_ENV_FILE; node-api must be configured first."
+if [ -z "$PGHOST" ] || [ -z "$PGPORT" ] || [ -z "$PGUSER" ] || [ -z "$PGPASSWORD" ]; then
+  log_error "Missing shared PG user vars in $NODE_ENV_FILE; node-api must be configured first."
   exit 1
 fi
 
@@ -35,7 +35,7 @@ Group=${SERVICE_NAME}
 WorkingDirectory=${INSTALL_DIR}
 Environment=MB_JETTY_PORT=${MB_PORT}
 Environment=MB_DB_TYPE=postgres
-Environment=MB_DB_DBNAME=${PGDATABASE}
+Environment=MB_DB_DBNAME=${MB_DATABASE}
 Environment=MB_DB_PORT=${PGPORT}
 Environment=MB_DB_USER=${PGUSER}
 Environment=MB_DB_PASS=${PGPASSWORD}

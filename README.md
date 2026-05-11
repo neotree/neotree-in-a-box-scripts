@@ -11,7 +11,7 @@ Deployment helper scripts for the Neotree stack. Each component has a self-conta
 - **node-api**: Express/Node back end and PostgreSQL schema.
 - **webeditor**: Front-end editor UI that talks to node-api.
 - **datapipeline**: Kedro-based data pipeline; auto-creates `conf/local/database.ini` and `conf/local/hospitals.ini` on first run with sensible defaults and optional webeditor integration.
-- **metabase**: Analytics layer pointing at the node-api database; now phased deploy with optional nginx + TLS setup.
+- **metabase**: Analytics layer with its own PostgreSQL application database; now phased deploy with optional nginx + TLS setup.
 
 ## Prerequisites
 - Ubuntu/Debian with sudo access
@@ -47,8 +47,10 @@ bash sensitive/undeploy.sh
 - The script is destructive by design and asks for confirmation before removing packages and directories.
 
 ## Datapipeline config flow
+- Database setup is streamlined for non-technical installs. The deploy creates one shared PostgreSQL user, `neotree_app`, and component databases with app-name defaults: `node_api`, `webeditor`, `datapipeline`, and `metabase`.
+- Node API and Webeditor no longer prompt for database host, port, database name, username, password, application URLs, API key, or generated secrets. Defaults are written to `.env`; `NEXTAUTH_SECRET` and `JWT_SECRET` are generated automatically.
 - After cloning, `deploy/datapipeline/phases/03_config_setup.sh` ensures `conf/local/database.ini` and `conf/local/hospitals.ini` exist.
-- Defaults: host `localhost`; database `node-api`; user `node-api`; password empty; country `zimbabwe` (can choose `malawi`); `data_fix` `True`.
+- Datapipeline defaults: host `localhost`; database `datapipeline`; user `neotree_app`; password loaded from node-api when available; country `zimbabwe` (can choose `malawi`); `data_fix` `True`.
 - If a webeditor connection is desired, the script appends `[webeditor]` with `webeditor` URL and `webeditor_api_key`.
 - Existing ini files are backed up with timestamped `.bak_*` before overwrite.
 

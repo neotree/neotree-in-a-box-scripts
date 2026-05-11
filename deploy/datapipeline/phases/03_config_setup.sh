@@ -45,12 +45,71 @@ backup_if_exists() {
 }
 
 default_host="localhost"
-default_db="node-api"
-default_user="node-api"
+default_db="datapipeline"
+default_user="neotree_app"
 default_password=""
 default_country="zimbabwe"
 default_webeditor=""
 default_webeditor_key=""
+
+generate_secret() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 24
+  else
+    od -An -N24 -tx1 /dev/urandom | tr -d ' \n'
+  fi
+}
+
+ensure_datapipeline_database() {
+  local esc_user esc_db esc_pw db_exists
+  esc_user="$DB_USER"
+  esc_db="$DB_NAME"
+  esc_pw="${DB_PASSWORD//\'/\'\'}"
+
+  if ! echo "$esc_user" | grep -Eq '^[A-Za-z0-9_]+$' || ! echo "$esc_db" | grep -Eq '^[A-Za-z0-9_]+$'; then
+    log_error "Database user and name must use only letters, numbers, or underscores."
+    return 1
+  fi
+
+  if ! id -u postgres >/dev/null 2>&1; then
+    log_warn "System user 'postgres' not found; skipping datapipeline database creation"
+    return 0
+  fi
+
+  if ! sudo -u postgres psql -v ON_ERROR_STOP=1 <<SQL
+DO \$\$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '$esc_user') THEN
+    CREATE ROLE "$esc_user" LOGIN PASSWORD '$esc_pw' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOINHERIT;
+  END IF;
+END
+\$\$;
+
+ALTER ROLE "$esc_user" WITH LOGIN PASSWORD '$esc_pw' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOINHERIT;
+SQL
+  then
+    log_warn "Could not ensure shared PostgreSQL user '$esc_user'; continuing with config file generation"
+    return 0
+  fi
+
+  if ! db_exists="$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${esc_db}'")"; then
+    log_warn "Could not check datapipeline database '$esc_db'; continuing with config file generation"
+    return 0
+  fi
+
+  if ! echo "$db_exists" | grep -q 1; then
+    sudo -u postgres createdb -O "$esc_user" "$esc_db" || {
+      log_warn "Could not create datapipeline database '$esc_db'; continuing with config file generation"
+      return 0
+    }
+  fi
+
+  sudo -u postgres psql -v ON_ERROR_STOP=1 <<SQL
+ALTER DATABASE "$esc_db" OWNER TO "$esc_user";
+REVOKE ALL ON DATABASE "$esc_db" FROM PUBLIC;
+GRANT CONNECT, TEMP ON DATABASE "$esc_db" TO "$esc_user";
+SQL
+}
 
 if [ -f "$NODE_ENV_FILE" ]; then
   log_info "Loading defaults from $NODE_ENV_FILE"
@@ -79,10 +138,11 @@ if [ -f "$DB_FILE" ]; then
 fi
 
 while true; do
-  DB_HOST="$(prompt "Database host" "$default_host")"
-  DB_NAME="$(prompt "Database name" "$default_db")"
-  DB_USER="$(prompt "Database user" "$default_user")"
-  DB_PASSWORD="$(prompt_secret "Database password" "$default_password")"
+  DB_HOST="$default_host"
+  DB_NAME="$default_db"
+  DB_USER="$default_user"
+  DB_PASSWORD="${default_password:-$(generate_secret)}"
+  log_info "Auto-configured datapipeline database '$DB_NAME' with shared PostgreSQL user '$DB_USER'"
 
   country_input="$(prompt "Country (zimbabwe/malawi)" "$default_country")"
   country_input="$(lowercase "$country_input")"
@@ -102,7 +162,7 @@ while true; do
   if confirm_with_back "Configure webeditor connection now? Press b to go back to the previous step."; then
     CONNECT_WEBEDITOR=1
     WEBEDITOR_URL="$(prompt "Webeditor URL" "$default_webeditor")"
-    WEBEDITOR_API_KEY="$(prompt_secret "Webeditor API key" "$default_webeditor_key")"
+    WEBEDITOR_API_KEY="$default_webeditor_key"
     break
   else
     case $? in
@@ -116,6 +176,8 @@ while true; do
     esac
   fi
 done
+
+ensure_datapipeline_database || true
 
 backup_if_exists "$DB_FILE"
 cat > "$DB_FILE" <<EOF

@@ -7,6 +7,13 @@ APP_ROOT="${APP_ROOT:-$HOME/neotree}"
 APP_DIR="${APP_DIR:-$APP_ROOT/neotree-editor}"
 ENV_FILE="${ENV_FILE:-$APP_DIR/.env}"
 EXAMPLE_FILE="${EXAMPLE_FILE:-$APP_DIR/.env-example}"
+NODE_ENV_FILE="${NODE_ENV_FILE:-$APP_ROOT/node-api/.env}"
+DEFAULT_PGDATABASE="${WEBEDITOR_DB_NAME:-webeditor}"
+DEFAULT_PGUSER="${NEOTREE_DB_USER:-neotree_app}"
+DEFAULT_PGHOST="${NEOTREE_DB_HOST:-localhost}"
+DEFAULT_PGPORT="${NEOTREE_DB_PORT:-5432}"
+DEFAULT_PORT="${WEBEDITOR_PORT:-3001}"
+DEFAULT_APP_URL="${WEBEDITOR_APP_URL:-http://localhost:${DEFAULT_PORT}}"
 
 if [ ! -d "$APP_DIR" ]; then
   log_error "App directory not found: $APP_DIR"
@@ -82,6 +89,14 @@ require_simple_ident() {
   fi
 }
 
+generate_secret() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 24
+  else
+    od -An -N24 -tx1 /dev/urandom | tr -d ' \n'
+  fi
+}
+
 write_env_file() {
   local file="$1"
   {
@@ -90,9 +105,15 @@ write_env_file() {
     dotenv_write_var NEOTREE_ENV "${NEOTREE_ENV:-}"
     dotenv_write_var HOSTNAME "${HOSTNAME:-}"
     dotenv_write_var PORT "${PORT:-}"
+    dotenv_write_var SERVER_PORT "${SERVER_PORT:-${PORT:-}}"
     dotenv_write_var API_KEY "${API_KEY:-}"
     dotenv_write_var DEBUG "${DEBUG:-}"
     dotenv_write_var DB_LOGGING "${DB_LOGGING:-}"
+    dotenv_write_var PGDATABASE "${PGDATABASE:-}"
+    dotenv_write_var PGUSER "${PGUSER:-}"
+    dotenv_write_var PGPASSWORD "${PGPASSWORD:-}"
+    dotenv_write_var PGPORT "${PGPORT:-}"
+    dotenv_write_var PGHOST "${PGHOST:-}"
     dotenv_write_var POSTGRES_DB_URL "${POSTGRES_DB_URL:-}"
     dotenv_write_var SESSIONS_DB_URL "${SESSIONS_DB_URL:-}"
     dotenv_write_var NEXT_PUBLIC_APP_NAME "${NEXT_PUBLIC_APP_NAME:-}"
@@ -117,9 +138,15 @@ load_env_from_file() {
   dotenv_read_var "$ENV_FILE" NEOTREE_ENV ""
   dotenv_read_var "$ENV_FILE" HOSTNAME ""
   dotenv_read_var "$ENV_FILE" PORT ""
+  dotenv_read_var "$ENV_FILE" SERVER_PORT ""
   dotenv_read_var "$ENV_FILE" API_KEY ""
   dotenv_read_var "$ENV_FILE" DEBUG ""
   dotenv_read_var "$ENV_FILE" DB_LOGGING ""
+  dotenv_read_var "$ENV_FILE" PGDATABASE ""
+  dotenv_read_var "$ENV_FILE" PGUSER ""
+  dotenv_read_var "$ENV_FILE" PGPASSWORD ""
+  dotenv_read_var "$ENV_FILE" PGPORT ""
+  dotenv_read_var "$ENV_FILE" PGHOST ""
   dotenv_read_var "$ENV_FILE" POSTGRES_DB_URL ""
   dotenv_read_var "$ENV_FILE" SESSIONS_DB_URL ""
   dotenv_read_var "$ENV_FILE" NEXT_PUBLIC_APP_NAME ""
@@ -143,7 +170,11 @@ required_db_vars_present() {
     [ -n "${NEOTREE_ENV:-}" ] &&
     [ -n "${HOSTNAME:-}" ] &&
     [ -n "${PORT:-}" ] &&
-    [ -n "${API_KEY:-}" ] &&
+    [ -n "${PGDATABASE:-}" ] &&
+    [ -n "${PGUSER:-}" ] &&
+    [ -n "${PGPASSWORD:-}" ] &&
+    [ -n "${PGPORT:-}" ] &&
+    [ -n "${PGHOST:-}" ] &&
     [ -n "${POSTGRES_DB_URL:-}" ] &&
     [ -n "${NEXT_PUBLIC_APP_NAME:-}" ] &&
     [ -n "${NEXT_PUBLIC_APP_URL:-}" ] &&
@@ -164,21 +195,48 @@ reset_email_values() {
   MAIL_RECEIVERS=""
 }
 
-prompt_db_values() {
+auto_config_db_values() {
   WRITE_ENV=1
+  local node_pg_user node_pg_pass node_pg_host node_pg_port
 
-  NEOTREE_SERVER_TYPE="$(prompt_required "NEOTREE_SERVER_TYPE (production | stage | development)" "${NEOTREE_SERVER_TYPE:-production}")"
-  NODE_ENV="$(prompt_required "NODE_ENV" "${NODE_ENV:-production}")"
-  NEOTREE_ENV="$(prompt_required "NEOTREE_ENV" "${NEOTREE_ENV:-}")"
-  HOSTNAME="$(prompt_required "HOSTNAME (development | stage | demo | production)" "${HOSTNAME:-production}")"
-  PORT="$(prompt_required "PORT" "${PORT:-3000}")"
-  API_KEY="$(prompt_required "API_KEY" "${API_KEY:-}")"
-  POSTGRES_DB_URL="$(prompt_required "POSTGRES_DB_URL (postgres://<dbuser>:<dbpass>@localhost:5432/<dbname>)" "${POSTGRES_DB_URL:-}")"
-  NEXT_PUBLIC_APP_NAME="$(prompt_required "NEXT_PUBLIC_APP_NAME" "${NEXT_PUBLIC_APP_NAME:-Neotree}")"
-  NEXT_PUBLIC_APP_URL="$(prompt_required "NEXT_PUBLIC_APP_URL" "${NEXT_PUBLIC_APP_URL:-http://localhost:3000}")"
-  NEXTAUTH_URL="$(prompt_required "NEXTAUTH_URL" "${NEXTAUTH_URL:-http://localhost:3000}")"
-  NEXTAUTH_SECRET="$(prompt_required "NEXTAUTH_SECRET" "${NEXTAUTH_SECRET:-}")"
-  JWT_SECRET="$(prompt_required "JWT_SECRET" "${JWT_SECRET:-}")"
+  if [ -f "$NODE_ENV_FILE" ]; then
+    node_pg_user="$(dotenv_get "$NODE_ENV_FILE" PGUSER || true)"
+    node_pg_pass="$(dotenv_get "$NODE_ENV_FILE" PGPASSWORD || true)"
+    node_pg_host="$(dotenv_get "$NODE_ENV_FILE" PGHOST || true)"
+    node_pg_port="$(dotenv_get "$NODE_ENV_FILE" PGPORT || true)"
+  else
+    node_pg_user=""
+    node_pg_pass=""
+    node_pg_host=""
+    node_pg_port=""
+  fi
+
+  NEOTREE_SERVER_TYPE="${NEOTREE_SERVER_TYPE:-production}"
+  NODE_ENV="${NODE_ENV:-production}"
+  NEOTREE_ENV="${NEOTREE_ENV:-production}"
+  HOSTNAME="${HOSTNAME:-production}"
+  PORT="${PORT:-$DEFAULT_PORT}"
+  SERVER_PORT="$PORT"
+  API_KEY="${API_KEY:-}"
+  DEBUG="${DEBUG:-false}"
+  DB_LOGGING="${DB_LOGGING:-false}"
+  PGDATABASE="$DEFAULT_PGDATABASE"
+  PGUSER="${node_pg_user:-$DEFAULT_PGUSER}"
+  PGPASSWORD="${node_pg_pass:-${PGPASSWORD:-${NEOTREE_DB_PASSWORD:-$(generate_secret)}}}"
+  PGPORT="${node_pg_port:-${PGPORT:-$DEFAULT_PGPORT}}"
+  PGHOST="${node_pg_host:-${PGHOST:-$DEFAULT_PGHOST}}"
+  POSTGRES_DB_URL="postgres://${PGUSER}:${PGPASSWORD}@${PGHOST}:${PGPORT}/${PGDATABASE}"
+  SESSIONS_DB_URL="$POSTGRES_DB_URL"
+  NEXT_PUBLIC_APP_NAME="${NEXT_PUBLIC_APP_NAME:-default}"
+  NEXT_PUBLIC_APP_URL="${NEXT_PUBLIC_APP_URL:-$DEFAULT_APP_URL}"
+  NEXTAUTH_URL="${NEXTAUTH_URL:-$NEXT_PUBLIC_APP_URL}"
+  NEXTAUTH_SECRET="${NEXTAUTH_SECRET:-$(generate_secret)}"
+  JWT_SECRET="${JWT_SECRET:-$(generate_secret)}"
+
+  require_simple_ident "PGDATABASE" "$PGDATABASE"
+  require_simple_ident "PGUSER" "$PGUSER"
+
+  log_info "Auto-configured webeditor database '$PGDATABASE' with shared PostgreSQL user '$PGUSER'"
 }
 
 prompt_email_values() {
@@ -396,92 +454,39 @@ run_interactive_setup() {
   while true; do
     case "$stage" in
       db)
-        prompt_db_values
-        stage="email"
+        auto_config_db_values
+        stage="provision"
+        ;;
+      provision)
+        rc=0
+        create_db_and_user || rc=$?
+        if [ "$rc" -eq 0 ]; then
+          log_success "PostgreSQL shared user/database ensured"
+          stage="validate"
+        elif [ "$rc" -eq 2 ]; then
+          log_info "Returning to database values"
+          stage="db"
+        else
+          log_error "PostgreSQL provisioning failed"
+          exit 1
+        fi
+        ;;
+      validate)
+        if validate_db_creds; then
+          log_success "Database credentials are valid"
+          stage="email"
+          continue
+        fi
+        log_error "Database credential validation failed"
+        exit 1
         ;;
       email)
         rc=0
         prompt_email_values || rc=$?
         case "$rc" in
-          0|1) stage="provision" ;;
-          2) log_info "Returning to database values"; stage="db" ;;
+          0|1) break ;;
+          2) log_info "Returning to database validation"; stage="validate" ;;
         esac
-        ;;
-      provision)
-        if confirm_with_back "Create PostgreSQL user and database now? (requires sudo postgres access). Press b to go back to the previous step."; then
-          rc=0
-          create_db_and_user || rc=$?
-          if [ "$rc" -eq 0 ]; then
-            log_success "PostgreSQL user/database ensured"
-            stage="validate"
-          elif [ "$rc" -eq 2 ]; then
-            log_info "Returning to email configuration"
-            stage="email"
-          else
-            log_error "PostgreSQL provisioning failed"
-            exit 1
-          fi
-        else
-          case $? in
-            2)
-              log_info "Returning to email configuration"
-              stage="email"
-              ;;
-            *)
-              log_warn "Skipping PostgreSQL provisioning"
-              stage="validate"
-              ;;
-          esac
-        fi
-        ;;
-      validate)
-        if confirm_with_back "Validate database credentials now? Press b to go back to the previous step."; then
-          if validate_db_creds; then
-            log_success "Database credentials are valid"
-            break
-          fi
-          log_error "Database credential validation failed"
-          if confirm_with_back "Attempt to create/update PostgreSQL user/database with provided creds? Press b to go back to the previous step."; then
-            rc=0
-            create_db_and_user || rc=$?
-            if [ "$rc" -eq 0 ]; then
-              log_success "PostgreSQL user/database ensured"
-              if validate_db_creds; then
-                log_success "Database credentials are valid"
-                break
-              fi
-              log_error "Database credential validation failed after provisioning"
-              exit 1
-            elif [ "$rc" -eq 2 ]; then
-              log_info "Returning to PostgreSQL provisioning"
-              stage="provision"
-            else
-              log_error "PostgreSQL provisioning failed"
-              exit 1
-            fi
-          else
-            case $? in
-              2)
-                log_info "Returning to PostgreSQL provisioning"
-                stage="provision"
-                ;;
-              *)
-                exit 1
-                ;;
-            esac
-          fi
-        else
-          case $? in
-            2)
-              log_info "Returning to PostgreSQL provisioning"
-              stage="provision"
-              ;;
-            *)
-              log_warn "Skipping database credential validation"
-              break
-              ;;
-          esac
-        fi
         ;;
     esac
   done
@@ -493,32 +498,31 @@ START_STAGE="provision"
 if [ -f "$ENV_FILE" ]; then
   log_info ".env found at $ENV_FILE"
   load_env_from_file
-  if required_db_vars_present; then
-    log_success "Existing .env already has required DB settings."
-    if confirm "Edit existing .env values?"; then
-      WRITE_ENV=1
-      START_STAGE="db"
-    else
-      log_info "Keeping existing .env values"
-      START_STAGE="provision"
-    fi
-  else
-    log_warn ".env is missing required DB settings."
-    if confirm "Edit .env and complete required values now?"; then
-      WRITE_ENV=1
-      START_STAGE="db"
-    else
-      log_error "Cannot proceed without required database variables"
-      exit 1
-    fi
-  fi
+  WRITE_ENV=1
+  START_STAGE="db"
 else
   SERVER_PORT=""
+  NEOTREE_SERVER_TYPE=""
+  NODE_ENV=""
+  NEOTREE_ENV=""
+  HOSTNAME=""
+  PORT=""
+  SERVER_PORT=""
+  API_KEY=""
+  DEBUG=""
+  DB_LOGGING=""
   PGDATABASE=""
   PGUSER=""
   PGPASSWORD=""
   PGPORT=""
   PGHOST=""
+  POSTGRES_DB_URL=""
+  SESSIONS_DB_URL=""
+  NEXT_PUBLIC_APP_NAME=""
+  NEXT_PUBLIC_APP_URL=""
+  NEXTAUTH_URL=""
+  NEXTAUTH_SECRET=""
+  JWT_SECRET=""
   MAIL_MAILER=""
   MAIL_HOST=""
   MAIL_PORT=""
