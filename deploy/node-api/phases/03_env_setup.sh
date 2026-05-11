@@ -219,6 +219,21 @@ validate_db_creds() {
     -c "SELECT 1;" >/dev/null
 }
 
+start_postgresql_service() {
+  if command -v systemctl >/dev/null 2>&1; then
+    sudo systemctl enable --now postgresql
+    return $?
+  fi
+
+  if command -v service >/dev/null 2>&1; then
+    sudo service postgresql start
+    return $?
+  fi
+
+  log_error "No supported service manager found to start PostgreSQL."
+  return 1
+}
+
 ensure_postgres_local_ready() {
   if sudo -u postgres psql -v ON_ERROR_STOP=1 -d postgres -c "SELECT 1;" >/dev/null 2>&1; then
     return 0
@@ -226,9 +241,9 @@ ensure_postgres_local_ready() {
 
   log_warn "PostgreSQL server is not running or is not accepting local connections."
 
-  if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^postgresql\.service'; then
+  if command -v systemctl >/dev/null 2>&1 || command -v service >/dev/null 2>&1; then
     if confirm_with_back "Start PostgreSQL service now? Press b to go back to the previous step."; then
-      if ! sudo systemctl enable --now postgresql; then
+      if ! start_postgresql_service; then
         log_error "Failed to start PostgreSQL service."
         return 1
       fi

@@ -45,6 +45,10 @@ while [ "$preflight_step" -le 4 ]; do
         if confirm_with_back "Install PostgreSQL server now? Press b to go back to the previous step."; then
           apt_update_once
           sudo apt install -y postgresql
+          if ! start_postgresql_service; then
+            log_error "PostgreSQL installed, but the service could not be started."
+            exit 1
+          fi
         else
           case $? in
             2)
@@ -60,11 +64,14 @@ while [ "$preflight_step" -le 4 ]; do
       fi
       ;;
     3)
-      if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^postgresql\.service'; then
-        if ! systemctl is-active postgresql >/dev/null 2>&1; then
+      if postgresql_service_available; then
+        if ! postgresql_service_running; then
           log_warn "PostgreSQL service is not running"
           if confirm_with_back "Start PostgreSQL service now? Press b to go back to the previous step."; then
-            sudo systemctl enable --now postgresql
+            if ! start_postgresql_service; then
+              log_error "Failed to start PostgreSQL service."
+              exit 1
+            fi
           else
             case $? in
               2)
@@ -80,6 +87,8 @@ while [ "$preflight_step" -le 4 ]; do
         else
           log_info "PostgreSQL service is running"
         fi
+      else
+        log_warn "No supported service manager found to check PostgreSQL service status"
       fi
 
       if command -v pg_isready >/dev/null 2>&1 && ! pg_isready -q; then

@@ -57,3 +57,36 @@ ensure_cmd() {
     log_info "$1 is installed"
   fi
 }
+
+postgresql_service_available() {
+  command -v systemctl >/dev/null 2>&1 || command -v service >/dev/null 2>&1
+}
+
+postgresql_service_running() {
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl is-active postgresql >/dev/null 2>&1
+    return $?
+  fi
+
+  if command -v service >/dev/null 2>&1; then
+    service postgresql status >/dev/null 2>&1
+    return $?
+  fi
+
+  return 1
+}
+
+start_postgresql_service() {
+  if command -v systemctl >/dev/null 2>&1; then
+    sudo systemctl enable --now postgresql
+    return $?
+  fi
+
+  if command -v service >/dev/null 2>&1; then
+    sudo service postgresql start
+    return $?
+  fi
+
+  log_error "No supported service manager found to start PostgreSQL."
+  return 1
+}
