@@ -231,6 +231,42 @@ validate_db_creds() {
     -c "SELECT 1;" >/dev/null
 }
 
+ensure_postgres_local_ready() {
+  if sudo -u postgres psql -v ON_ERROR_STOP=1 -d postgres -c "SELECT 1;" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  log_warn "PostgreSQL server is not running or is not accepting local connections."
+
+  if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files | grep -q '^postgresql\.service'; then
+    if confirm_with_back "Start PostgreSQL service now? Press b to go back to the previous step."; then
+      if ! sudo systemctl enable --now postgresql; then
+        log_error "Failed to start PostgreSQL service."
+        return 1
+      fi
+
+      if sudo -u postgres psql -v ON_ERROR_STOP=1 -d postgres -c "SELECT 1;" >/dev/null 2>&1; then
+        log_success "PostgreSQL service is running"
+        return 0
+      fi
+
+      log_error "PostgreSQL still is not accepting local connections after starting the service."
+      return 1
+    else
+      case $? in
+        2) return 2 ;;
+        *)
+          log_info "Start PostgreSQL, then retry this step. On systemd hosts: sudo systemctl enable --now postgresql"
+          return 1
+          ;;
+      esac
+    fi
+  fi
+
+  log_info "Start PostgreSQL, then retry this step. On systemd hosts: sudo systemctl enable --now postgresql"
+  return 1
+}
+
 create_db_and_user() {
   local esc_user esc_db esc_pw
   esc_user="$PGUSER"
@@ -243,11 +279,7 @@ create_db_and_user() {
     return 1
   fi
 
-  if ! sudo -u postgres psql -v ON_ERROR_STOP=1 -d postgres -c "SELECT 1;" >/dev/null 2>&1; then
-    log_error "PostgreSQL server is not running or is not accepting local connections."
-    log_info "Start PostgreSQL, then retry this step. On systemd hosts: sudo systemctl enable --now postgresql"
-    return 1
-  fi
+  ensure_postgres_local_ready || return $?
 
   if ! sudo -u postgres psql -v ON_ERROR_STOP=1 <<SQL
 DO \$\$
@@ -311,9 +343,14 @@ run_interactive_setup() {
         ;;
       provision)
         if confirm_with_back "Create PostgreSQL user and database now? (requires sudo postgres access). Press b to go back to the previous step."; then
-          if create_db_and_user; then
+          rc=0
+          create_db_and_user || rc=$?
+          if [ "$rc" -eq 0 ]; then
             log_success "PostgreSQL user/database ensured"
             stage="validate"
+          elif [ "$rc" -eq 2 ]; then
+            log_info "Returning to email configuration"
+            stage="email"
           else
             log_error "PostgreSQL provisioning failed"
             exit 1
@@ -339,7 +376,9 @@ run_interactive_setup() {
           fi
           log_error "Database credential validation failed"
           if confirm_with_back "Attempt to create/update PostgreSQL user/database with provided creds? Press b to go back to the previous step."; then
-            if create_db_and_user; then
+            rc=0
+            create_db_and_user || rc=$?
+            if [ "$rc" -eq 0 ]; then
               log_success "PostgreSQL user/database ensured"
               if validate_db_creds; then
                 log_success "Database credentials are valid"
@@ -347,6 +386,9 @@ run_interactive_setup() {
               fi
               log_error "Database credential validation failed after provisioning"
               exit 1
+            elif [ "$rc" -eq 2 ]; then
+              log_info "Returning to PostgreSQL provisioning"
+              stage="provision"
             else
               log_error "PostgreSQL provisioning failed"
               exit 1
