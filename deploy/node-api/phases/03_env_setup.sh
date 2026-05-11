@@ -130,7 +130,21 @@ required_db_vars_present() {
     [ -n "${PGHOST:-}" ]
 }
 
+reset_email_values() {
+  MAIL_MAILER=""
+  MAIL_HOST=""
+  MAIL_PORT=""
+  MAIL_USERNAME=""
+  MAIL_PASSWORD=""
+  MAIL_ENCRYPTION=""
+  MAIL_FROM_ADDRESS=""
+  MAIL_FROM_NAME=""
+  MAIL_RECEIVERS=""
+}
+
 prompt_db_values() {
+  WRITE_ENV=1
+
   SERVER_PORT="$(prompt_required "SERVER_PORT" "${SERVER_PORT:-3000}")"
   PGDATABASE="$(prompt_required "PGDATABASE" "${PGDATABASE:-}")"
   PGUSER="$(prompt_required "PGUSER" "${PGUSER:-}")"
@@ -157,6 +171,8 @@ prompt_db_values() {
 
 prompt_email_values() {
   if confirm_with_back "Configure email server variables now? Press b to go back to the previous step."; then
+    WRITE_ENV=1
+
     MAIL_MAILER="$(prompt_required "MAIL_MAILER (e.g. smtp)" "${MAIL_MAILER:-}")"
     MAIL_HOST="$(prompt_required "MAIL_HOST" "${MAIL_HOST:-}")"
     MAIL_PORT="$(prompt_required "MAIL_PORT" "${MAIL_PORT:-587}")"
@@ -181,7 +197,12 @@ prompt_email_values() {
   else
     case $? in
       2) return 2 ;;
-      *) log_warn "Skipping email configuration"; return 1 ;;
+      *)
+        WRITE_ENV=1
+        reset_email_values
+        log_warn "Skipping email configuration"
+        return 1
+        ;;
     esac
   fi
 }
@@ -237,7 +258,7 @@ SQL
 
 run_interactive_setup() {
   local stage="${1:-db}"
-  local rc retry_rc
+  local rc
 
   while true; do
     case "$stage" in
@@ -246,8 +267,8 @@ run_interactive_setup() {
         stage="email"
         ;;
       email)
-        prompt_email_values
-        rc=$?
+        rc=0
+        prompt_email_values || rc=$?
         case "$rc" in
           0|1) stage="provision" ;;
           2) log_info "Returning to database values"; stage="db" ;;
