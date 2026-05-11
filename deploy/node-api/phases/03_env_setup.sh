@@ -220,17 +220,39 @@ validate_db_creds() {
 }
 
 start_postgresql_service() {
+  local started=1
+
   if command -v systemctl >/dev/null 2>&1; then
-    sudo systemctl enable --now postgresql
-    return $?
+    if sudo systemctl enable --now postgresql; then
+      started=0
+    elif sudo systemctl start postgresql; then
+      started=0
+    fi
   fi
 
-  if command -v service >/dev/null 2>&1; then
-    sudo service postgresql start
-    return $?
+  if [ "$started" -ne 0 ] && command -v service >/dev/null 2>&1; then
+    if sudo service postgresql start; then
+      started=0
+    fi
   fi
 
-  log_error "No supported service manager found to start PostgreSQL."
+  if [ "$started" -ne 0 ] && command -v pg_lsclusters >/dev/null 2>&1 && command -v pg_ctlcluster >/dev/null 2>&1; then
+    local version cluster port status owner data_dir log_file
+    while read -r version cluster port status owner data_dir log_file; do
+      [ -n "$version" ] || continue
+      if sudo pg_ctlcluster "$version" "$cluster" start; then
+        started=0
+      fi
+    done <<EOF
+$(pg_lsclusters -h 2>/dev/null || true)
+EOF
+  fi
+
+  if [ "$started" -eq 0 ]; then
+    return 0
+  fi
+
+  log_error "Could not start PostgreSQL using systemctl, service, or pg_ctlcluster."
   return 1
 }
 
