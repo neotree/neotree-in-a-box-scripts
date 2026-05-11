@@ -243,7 +243,13 @@ create_db_and_user() {
     return 1
   fi
 
-  sudo -u postgres psql -v ON_ERROR_STOP=1 <<SQL
+  if ! sudo -u postgres psql -v ON_ERROR_STOP=1 -d postgres -c "SELECT 1;" >/dev/null 2>&1; then
+    log_error "PostgreSQL server is not running or is not accepting local connections."
+    log_info "Start PostgreSQL, then retry this step. On systemd hosts: sudo systemctl enable --now postgresql"
+    return 1
+  fi
+
+  if ! sudo -u postgres psql -v ON_ERROR_STOP=1 <<SQL
 DO \$\$
 BEGIN
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '$esc_user') THEN
@@ -254,16 +260,33 @@ END
 
 ALTER ROLE "$esc_user" WITH LOGIN PASSWORD '$esc_pw' NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOINHERIT;
 SQL
-
-  if ! sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${esc_db}'" | grep -q 1; then
-    sudo -u postgres createdb -O "$esc_user" "$esc_db"
+  then
+    log_error "Failed to create or update PostgreSQL role '$esc_user'"
+    return 1
   fi
 
-  sudo -u postgres psql -v ON_ERROR_STOP=1 <<SQL
+  local db_exists
+  if ! db_exists="$(sudo -u postgres psql -tAc "SELECT 1 FROM pg_database WHERE datname='${esc_db}'")"; then
+    log_error "Failed to check whether PostgreSQL database '$esc_db' exists"
+    return 1
+  fi
+
+  if ! echo "$db_exists" | grep -q 1; then
+    if ! sudo -u postgres createdb -O "$esc_user" "$esc_db"; then
+      log_error "Failed to create PostgreSQL database '$esc_db'"
+      return 1
+    fi
+  fi
+
+  if ! sudo -u postgres psql -v ON_ERROR_STOP=1 <<SQL
 ALTER DATABASE "$esc_db" OWNER TO "$esc_user";
 REVOKE ALL ON DATABASE "$esc_db" FROM PUBLIC;
 GRANT CONNECT, TEMP ON DATABASE "$esc_db" TO "$esc_user";
 SQL
+  then
+    log_error "Failed to apply permissions for PostgreSQL database '$esc_db'"
+    return 1
+  fi
 
   validate_db_creds
 }
