@@ -59,18 +59,59 @@ ensure_cmd() {
 }
 
 postgresql_service_available() {
-  command -v systemctl >/dev/null 2>&1 || command -v service >/dev/null 2>&1
+  command -v systemctl >/dev/null 2>&1 ||
+    command -v service >/dev/null 2>&1 ||
+    command -v pg_ctlcluster >/dev/null 2>&1
+}
+
+postgresql_cluster_exists() {
+  command -v pg_lsclusters >/dev/null 2>&1 || return 1
+  pg_lsclusters -h 2>/dev/null | awk 'NF >= 2 { found=1 } END { exit(found ? 0 : 1) }'
+}
+
+postgresql_server_installed() {
+  compgen -G "/usr/lib/postgresql/*/bin/postgres" >/dev/null || postgresql_cluster_exists
+}
+
+create_postgresql_cluster_if_missing() {
+  local version
+
+  if postgresql_cluster_exists; then
+    return 0
+  fi
+
+  if ! command -v pg_createcluster >/dev/null 2>&1; then
+    log_error "PostgreSQL is installed without a cluster, and pg_createcluster is not available."
+    return 1
+  fi
+
+  version="$(find /usr/lib/postgresql -mindepth 1 -maxdepth 1 -type d -printf '%f\n' 2>/dev/null | sort -V | tail -n 1)"
+  if [ -z "$version" ]; then
+    log_error "PostgreSQL server binaries were not found under /usr/lib/postgresql."
+    return 1
+  fi
+
+  log_info "Creating PostgreSQL cluster ${version}/main"
+  sudo pg_createcluster "$version" main --start
 }
 
 postgresql_service_running() {
   if command -v systemctl >/dev/null 2>&1; then
-    systemctl is-active postgresql >/dev/null 2>&1
-    return $?
+    if systemctl is-active postgresql >/dev/null 2>&1; then
+      return 0
+    fi
   fi
 
   if command -v service >/dev/null 2>&1; then
-    service postgresql status >/dev/null 2>&1
-    return $?
+    if service postgresql status >/dev/null 2>&1; then
+      return 0
+    fi
+  fi
+
+  if command -v pg_lsclusters >/dev/null 2>&1; then
+    if pg_lsclusters -h 2>/dev/null | awk '$4 == "online" { found=1 } END { exit(found ? 0 : 1) }'; then
+      return 0
+    fi
   fi
 
   return 1
@@ -79,16 +120,18 @@ postgresql_service_running() {
 start_postgresql_service() {
   local started=1
 
+  create_postgresql_cluster_if_missing || return 1
+
   if command -v systemctl >/dev/null 2>&1; then
-    if sudo systemctl enable --now postgresql; then
+    if sudo systemctl enable --now postgresql >/dev/null 2>&1; then
       started=0
-    elif sudo systemctl start postgresql; then
+    elif sudo systemctl start postgresql >/dev/null 2>&1; then
       started=0
     fi
   fi
 
   if [ "$started" -ne 0 ] && command -v service >/dev/null 2>&1; then
-    if sudo service postgresql start; then
+    if sudo service postgresql start >/dev/null 2>&1; then
       started=0
     fi
   fi
@@ -97,7 +140,7 @@ start_postgresql_service() {
     local version cluster port status owner data_dir log_file
     while read -r version cluster port status owner data_dir log_file; do
       [ -n "$version" ] || continue
-      if sudo pg_ctlcluster "$version" "$cluster" start; then
+      if sudo pg_ctlcluster "$version" "$cluster" start >/dev/null 2>&1; then
         started=0
       fi
     done <<EOF

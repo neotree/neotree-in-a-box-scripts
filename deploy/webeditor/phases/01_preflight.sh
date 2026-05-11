@@ -40,7 +40,7 @@ while [ "$preflight_step" -le 4 ]; do
       fi
       ;;
     2)
-      if ! id -u postgres >/dev/null 2>&1; then
+      if ! postgresql_server_installed; then
         log_warn "PostgreSQL server is not installed"
         if confirm_with_back "Install PostgreSQL server now? Press b to go back to the previous step."; then
           apt_update_once
