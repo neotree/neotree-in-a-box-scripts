@@ -5,6 +5,7 @@ BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$BASE_DIR/../lib/log.sh"
 source "$BASE_DIR/../lib/checks.sh"
 source "$BASE_DIR/../lib/progress.sh"
+source "$BASE_DIR/../lib/prompt.sh"
 
 LOG_DIR="$BASE_DIR/logs"
 mkdir -p "$LOG_DIR"
@@ -38,7 +39,11 @@ run_tracked_phase "$COMPONENT_NAME" "04_db_migrate" "$BASE_DIR/phases/04_db_migr
 run_tracked_phase "$COMPONENT_NAME" "05_node_build" "$BASE_DIR/phases/05_node_build.sh" "Install node dependencies"
 run_tracked_phase "$COMPONENT_NAME" "06_pm2_start" "$BASE_DIR/phases/06_pm2_start.sh" "Start PM2 process"
 run_tracked_phase "$COMPONENT_NAME" "07_post_install" "$BASE_DIR/phases/07_post_install.sh" "Post-install checks"
-run_tracked_phase "$COMPONENT_NAME" "08_nginx_setup" "$BASE_DIR/phases/08_nginx_setup.sh" "Nginx setup"
+if confirm "Continue to advanced setup?"; then
+  run_tracked_phase "$COMPONENT_NAME" "09_advanced_setup" "$BASE_DIR/phases/09_advanced_setup.sh" "Advanced setup"
+else
+  log_info "Skipping advanced setup"
+fi
 progress_mark_component_complete "$COMPONENT_NAME"
 
 log_success "Neotree nodeapi deployment completed successfully"

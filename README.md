@@ -13,6 +13,8 @@ Deployment helper scripts for the Neotree stack. Each component has a self-conta
 - **datapipeline**: Kedro-based data pipeline; auto-creates `conf/local/database.ini` and `conf/local/hospitals.ini` on first run with sensible defaults and optional webeditor integration.
 - **metabase**: Analytics layer with its own PostgreSQL application database; now phased deploy with optional nginx + TLS setup.
 
+The stack shares one PostgreSQL role, `neotree_app`, whose credentials live in the app-root `.env` at `~/neotree/.env`. The file is generated on first core database setup and is not tracked by git.
+
 ## Prerequisites
 - Ubuntu/Debian with sudo access
 - git, curl, bash
@@ -48,9 +50,9 @@ bash sensitive/undeploy.sh
 
 ## Datapipeline config flow
 - Database setup is streamlined for non-technical installs. The deploy creates one shared PostgreSQL user, `neotree_app`, and component databases with app-name defaults: `node_api`, `webeditor`, `datapipeline`, and `metabase`.
-- Node API and Webeditor no longer prompt for database host, port, database name, username, password, application URLs, API key, or generated secrets. Defaults are written to `.env`; `NEXTAUTH_SECRET` and `JWT_SECRET` are generated automatically.
+- Node API and Webeditor core setup no longer prompt for database host, port, database name, username, password, application URLs, API key, or generated secrets. Shared PostgreSQL credentials are written to `~/neotree/.env`; `NEXTAUTH_SECRET` and `JWT_SECRET` are generated automatically when the advanced step is used.
 - After cloning, `deploy/datapipeline/phases/03_config_setup.sh` ensures `conf/local/database.ini` and `conf/local/hospitals.ini` exist.
-- Datapipeline defaults: host `localhost`; database `datapipeline`; user `neotree_app`; password loaded from node-api when available; country `zimbabwe` (can choose `malawi`); `data_fix` `True`.
+- Datapipeline defaults: host `localhost`; database `datapipeline`; user `neotree_app`; password loaded from the shared app-root `.env` when available; country `zimbabwe` (can choose `malawi`); `data_fix` `True`.
 - If a webeditor connection is desired, the script appends `[webeditor]` with `webeditor` URL and `webeditor_api_key`.
 - Existing ini files are backed up with timestamped `.bak_*` before overwrite.
 
@@ -73,12 +75,12 @@ PYTHON_BIN=python3.8 bash deploy/datapipeline/deploy.sh
 ```
 
 ## Metabase domain, nginx, and certificates
-- The Metabase deployer now runs in phases and asks for a domain. If you leave it blank, it auto-detects the server’s public IP and uses that in nginx.
+- The Metabase deployer now asks whether to continue into advanced setup after the core application is ready. If you continue, it asks for a domain; leaving it blank auto-detects the server’s public IP and uses that in nginx.
 - nginx reverse-proxy is created at `/etc/nginx/sites-available/metabase.conf` and enabled automatically.
 - TLS: you can point the prompts to existing cert files (fullchain and key). They will be copied to `/etc/ssl/neotree/metabase.crt` and `/etc/ssl/neotree/metabase.key` with secure perms, then nginx is reloaded. Skip TLS to run on plain HTTP.
 
 ## Node API & Webeditor domains/TLS
-- Their nginx setup now matches Metabase: you’re prompted for a domain (blank → auto-detected public IP), then optionally for cert/key paths. Certs are staged under `/etc/ssl/neotree/<site>.crt/.key`; nginx is tested and reloaded automatically. Skip TLS to serve plain HTTP on port 80.
+- Their nginx and mail configuration now live behind an opt-in advanced setup step. If you continue, you’re prompted for mail settings and then for a domain (blank → auto-detected public IP), optionally followed by cert/key paths. Certs are staged under `/etc/ssl/neotree/<site>.crt/.key`; nginx is tested and reloaded automatically. Skip advanced setup to run the apps without mail or reverse proxy.
 
 ### Certificate prep tips (all apps)
 - If you already have certs from a CA (including Let’s Encrypt), copy the fullchain and key files to the server first (e.g., `scp fullchain.pem user@server:/tmp/` and `scp privkey.pem user@server:/tmp/`).
@@ -90,6 +92,8 @@ PYTHON_BIN=python3.8 bash deploy/datapipeline/deploy.sh
 - You can override server names by rerunning just the nginx phase for each component with the desired domain.
 
 ### Phase-only reruns
+- Node API advanced setup: `bash deploy/node-api/phases/09_advanced_setup.sh`
+- Webeditor advanced setup: `bash deploy/webeditor/phases/09_advanced_setup.sh`
 - Node API nginx only: `bash deploy/node-api/phases/08_nginx_setup.sh`
 - Webeditor nginx only: `bash deploy/webeditor/phases/08_nginx_setup.sh`
 - Metabase nginx only: `bash deploy/metabase/phases/04_nginx_setup.sh`

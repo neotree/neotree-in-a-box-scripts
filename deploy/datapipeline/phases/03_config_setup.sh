@@ -3,6 +3,7 @@ source "$(dirname "$0")/../../lib/log.sh"
 source "$(dirname "$0")/../../lib/dotenv.sh"
 source "$(dirname "$0")/../../lib/prompt.sh"
 source "$(dirname "$0")/../../lib/checks.sh"
+source "$(dirname "$0")/../../lib/global_env.sh"
 
 APP_ROOT="${APP_ROOT:-$HOME/neotree}"
 APP_DIR="${APP_DIR:-$APP_ROOT/datapipeline}"
@@ -111,17 +112,23 @@ GRANT CONNECT, TEMP ON DATABASE "$esc_db" TO "$esc_user";
 SQL
 }
 
-if [ -f "$NODE_ENV_FILE" ]; then
-  log_info "Loading defaults from $NODE_ENV_FILE"
-  node_pg_host="$(dotenv_get "$NODE_ENV_FILE" PGHOST || true)"
-  node_pg_user="$(dotenv_get "$NODE_ENV_FILE" PGUSER || true)"
-  node_pg_pass="$(dotenv_get "$NODE_ENV_FILE" PGPASSWORD || true)"
+if ! load_shared_pg_env; then
+  if [ -f "$NODE_ENV_FILE" ]; then
+    log_info "Loading defaults from $NODE_ENV_FILE"
+    node_pg_host="$(dotenv_get "$NODE_ENV_FILE" PGHOST || true)"
+    node_pg_user="$(dotenv_get "$NODE_ENV_FILE" PGUSER || true)"
+    node_pg_pass="$(dotenv_get "$NODE_ENV_FILE" PGPASSWORD || true)"
 
-  [ -n "$node_pg_host" ] && default_host="$node_pg_host"
-  [ -n "$node_pg_user" ] && default_user="$node_pg_user"
-  [ -n "$node_pg_pass" ] && default_password="$node_pg_pass"
+    [ -n "$node_pg_host" ] && default_host="$node_pg_host"
+    [ -n "$node_pg_user" ] && default_user="$node_pg_user"
+    [ -n "$node_pg_pass" ] && default_password="$node_pg_pass"
+  else
+    log_warn "Global .env and node-api .env not found; using fallback defaults"
+  fi
 else
-  log_warn "Node API .env not found at $NODE_ENV_FILE; using fallback defaults"
+  [ -n "$PGHOST" ] && default_host="$PGHOST"
+  [ -n "$PGUSER" ] && default_user="$PGUSER"
+  [ -n "$PGPASSWORD" ] && default_password="$PGPASSWORD"
 fi
 
 if [ -f "$DB_FILE" ]; then

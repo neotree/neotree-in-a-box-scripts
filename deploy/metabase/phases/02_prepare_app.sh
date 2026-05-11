@@ -1,6 +1,7 @@
 set -euo pipefail
 source "$(dirname "$0")/../../lib/log.sh"
 source "$(dirname "$0")/../../lib/dotenv.sh"
+source "$(dirname "$0")/../../lib/global_env.sh"
 
 APP_ROOT="${APP_ROOT:-$HOME/neotree}"
 NODE_ENV_FILE="${NODE_ENV_FILE:-$APP_ROOT/node-api/.env}"
@@ -11,15 +12,17 @@ SERVICE_NAME="${SERVICE_NAME:-metabase}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/metabase}"
 MB_DATABASE="${MB_DATABASE:-metabase}"
 
-if [ ! -f "$NODE_ENV_FILE" ]; then
-  log_error "node-api env file not found at $NODE_ENV_FILE. Deploy node-api first."
-  exit 1
-fi
+if ! load_shared_pg_env; then
+  if [ ! -f "$NODE_ENV_FILE" ]; then
+    log_error "Global .env and node-api env file not found. Deploy node-api first."
+    exit 1
+  fi
 
-dotenv_get "$NODE_ENV_FILE" PGHOST || PGHOST=""
-dotenv_get "$NODE_ENV_FILE" PGPORT || PGPORT=""
-dotenv_get "$NODE_ENV_FILE" PGUSER || PGUSER=""
-dotenv_get "$NODE_ENV_FILE" PGPASSWORD || PGPASSWORD=""
+  dotenv_get "$NODE_ENV_FILE" PGHOST || PGHOST=""
+  dotenv_get "$NODE_ENV_FILE" PGPORT || PGPORT=""
+  dotenv_get "$NODE_ENV_FILE" PGUSER || PGUSER=""
+  dotenv_get "$NODE_ENV_FILE" PGPASSWORD || PGPASSWORD=""
+fi
 
 if [ -z "$PGHOST" ] || [ -z "$PGPORT" ] || [ -z "$PGUSER" ] || [ -z "$PGPASSWORD" ]; then
   log_error "Missing shared PG user vars in $NODE_ENV_FILE; node-api must be configured first."

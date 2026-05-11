@@ -2,16 +2,15 @@ set -euo pipefail
 source "$(dirname "$0")/../../lib/log.sh"
 source "$(dirname "$0")/../../lib/dotenv.sh"
 source "$(dirname "$0")/../../lib/prompt.sh"
+source "$(dirname "$0")/../../lib/global_env.sh"
 
 APP_ROOT="${APP_ROOT:-$HOME/neotree}"
 APP_DIR="${APP_DIR:-$APP_ROOT/node-api}"
 ENV_FILE="${ENV_FILE:-$APP_DIR/.env}"
 EXAMPLE_FILE="${EXAMPLE_FILE:-$APP_DIR/.env-example}"
 DEFAULT_PGDATABASE="${NODE_API_DB_NAME:-node_api}"
-DEFAULT_PGUSER="${NEOTREE_DB_USER:-neotree_app}"
-DEFAULT_PGHOST="${NEOTREE_DB_HOST:-localhost}"
-DEFAULT_PGPORT="${NEOTREE_DB_PORT:-5432}"
 DEFAULT_SERVER_PORT="${NODE_API_PORT:-3000}"
+GLOBAL_ENV_FILE="${GLOBAL_ENV_FILE:-$APP_ROOT/.env}"
 
 if [ ! -d "$APP_DIR" ]; then
   log_error "App directory not found: $APP_DIR"
@@ -87,14 +86,6 @@ require_simple_ident() {
   fi
 }
 
-generate_secret() {
-  if command -v openssl >/dev/null 2>&1; then
-    openssl rand -hex 24
-  else
-    od -An -N24 -tx1 /dev/urandom | tr -d ' \n'
-  fi
-}
-
 write_env_file() {
   local file="$1"
   {
@@ -143,70 +134,24 @@ required_db_vars_present() {
     [ -n "${PGHOST:-}" ]
 }
 
-reset_email_values() {
-  MAIL_MAILER=""
-  MAIL_HOST=""
-  MAIL_PORT=""
-  MAIL_USERNAME=""
-  MAIL_PASSWORD=""
-  MAIL_ENCRYPTION=""
-  MAIL_FROM_ADDRESS=""
-  MAIL_FROM_NAME=""
-  MAIL_RECEIVERS=""
-}
-
 auto_config_db_values() {
   WRITE_ENV=1
+  if [ -f "$GLOBAL_ENV_FILE" ]; then
+    load_shared_pg_env || true
+  fi
 
   SERVER_PORT="${SERVER_PORT:-$DEFAULT_SERVER_PORT}"
   PGDATABASE="$DEFAULT_PGDATABASE"
-  PGUSER="$DEFAULT_PGUSER"
-  PGPASSWORD="${PGPASSWORD:-${NEOTREE_DB_PASSWORD:-$(generate_secret)}}"
-  PGPORT="${PGPORT:-$DEFAULT_PGPORT}"
-  PGHOST="${PGHOST:-$DEFAULT_PGHOST}"
+  PGHOST="${PGHOST:-localhost}"
+  PGPORT="${PGPORT:-5432}"
+  PGUSER="${PGUSER:-neotree_app}"
+  PGPASSWORD="${PGPASSWORD:-$(generate_secret)}"
+  write_shared_pg_env
 
   require_simple_ident "PGDATABASE" "$PGDATABASE"
   require_simple_ident "PGUSER" "$PGUSER"
 
   log_info "Auto-configured node-api database '$PGDATABASE' with shared PostgreSQL user '$PGUSER'"
-}
-
-prompt_email_values() {
-  if confirm_with_back "Configure email server variables now? Press b to go back to the previous step."; then
-    WRITE_ENV=1
-
-    MAIL_MAILER="$(prompt_required "MAIL_MAILER (e.g. smtp)" "${MAIL_MAILER:-}")"
-    MAIL_HOST="$(prompt_required "MAIL_HOST" "${MAIL_HOST:-}")"
-    MAIL_PORT="$(prompt_required "MAIL_PORT" "${MAIL_PORT:-587}")"
-    MAIL_USERNAME="$(prompt_required "MAIL_USERNAME" "${MAIL_USERNAME:-}")"
-    if [ -n "${MAIL_PASSWORD:-}" ]; then
-      local old_mail_pw new_mail_pw
-      old_mail_pw="$MAIL_PASSWORD"
-      new_mail_pw="$(prompt_secret "MAIL_PASSWORD (press enter to keep existing)")"
-      MAIL_PASSWORD="${new_mail_pw:-$old_mail_pw}"
-    else
-      MAIL_PASSWORD="$(prompt_secret "MAIL_PASSWORD")"
-      if [ -z "$MAIL_PASSWORD" ]; then
-        log_error "MAIL_PASSWORD is required."
-        exit 1
-      fi
-    fi
-    MAIL_ENCRYPTION="$(prompt_required "MAIL_ENCRYPTION (e.g. tls)" "${MAIL_ENCRYPTION:-}")"
-    MAIL_FROM_ADDRESS="$(prompt_required "MAIL_FROM_ADDRESS" "${MAIL_FROM_ADDRESS:-}")"
-    MAIL_FROM_NAME="$(prompt_required "MAIL_FROM_NAME" "${MAIL_FROM_NAME:-}")"
-    MAIL_RECEIVERS="$(prompt_required "MAIL_RECEIVERS (comma-separated)" "${MAIL_RECEIVERS:-}")"
-    return 0
-  else
-    case $? in
-      2) return 2 ;;
-      *)
-        WRITE_ENV=1
-        reset_email_values
-        log_warn "Skipping email configuration"
-        return 1
-        ;;
-    esac
-  fi
 }
 
 validate_db_creds() {
@@ -406,19 +351,10 @@ run_interactive_setup() {
       validate)
         if validate_db_creds; then
           log_success "Database credentials are valid"
-          stage="email"
-          continue
+          break
         fi
         log_error "Database credential validation failed"
         exit 1
-        ;;
-      email)
-        rc=0
-        prompt_email_values || rc=$?
-        case "$rc" in
-          0|1) break ;;
-          2) log_info "Returning to database validation"; stage="validate" ;;
-        esac
         ;;
     esac
   done
