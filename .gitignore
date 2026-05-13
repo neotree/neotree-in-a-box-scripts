@@ -6,8 +6,13 @@
 
 # Logs
 *.log
-deploy/node-api/logs/
-deploy/webeditor/logs/
+logs/
+deploy/*/logs/
+deploy/logs/
+
+# Deploy runtime state
+deploy/state/
+*.lock
 
 # Database dumps
 deploy/webeditor/database/db.sql
