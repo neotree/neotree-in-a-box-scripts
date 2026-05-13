@@ -62,6 +62,7 @@ while [ "$preflight_step" -le 4 ]; do
           esac
         fi
       fi
+      ensure_postgresql_contrib
       ;;
     3)
       if postgresql_service_available; then

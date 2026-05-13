@@ -117,10 +117,11 @@ apply_sql_file() {
 
   log_info "Applying $fname"
   if [[ "$file" == *.gz ]]; then
-    gzip -dc "$file" | PGPASSWORD="${PGPASSWORD:-}" psql -v ON_ERROR_STOP=1 "$PG_CONN" 2>&1 | tee -a "$LOG_FILE"
+    gzip -dc "$file" | PGPASSWORD="${PGPASSWORD:-}" psql -v ON_ERROR_STOP=1 --single-transaction "$PG_CONN" 2>&1 | tee -a "$LOG_FILE"
     status=("${PIPESTATUS[@]}")
   else
     PGPASSWORD="${PGPASSWORD:-}" psql -v ON_ERROR_STOP=1 \
+      --single-transaction \
       "$PG_CONN" \
       -f "$file" 2>&1 | tee -a "$LOG_FILE"
     status=("${PIPESTATUS[@]}")

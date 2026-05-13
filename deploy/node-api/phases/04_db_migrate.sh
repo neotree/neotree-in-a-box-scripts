@@ -89,6 +89,7 @@ for file in "${files[@]}"; do
 
   log_info "Applying $fname"
   PGPASSWORD="${PGPASSWORD:-}" psql -v ON_ERROR_STOP=1 \
+    --single-transaction \
     "host=$PGHOST port=$PGPORT dbname=$PGDATABASE user=$PGUSER sslmode=$PGSSLMODE" \
     -f "$file" 2>&1 | tee -a "$LOG_FILE"
   if [ "${PIPESTATUS[0]}" -ne 0 ]; then

@@ -39,7 +39,7 @@ run_tracked_phase "$COMPONENT_NAME" "04_db_migrate" "$BASE_DIR/phases/04_db_migr
 run_tracked_phase "$COMPONENT_NAME" "05_node_build" "$BASE_DIR/phases/05_node_build.sh" "Install node dependencies"
 run_tracked_phase "$COMPONENT_NAME" "06_pm2_start" "$BASE_DIR/phases/06_pm2_start.sh" "Start PM2 process"
 run_tracked_phase "$COMPONENT_NAME" "07_post_install" "$BASE_DIR/phases/07_post_install.sh" "Post-install checks"
-if confirm "Continue to advanced setup?"; then
+if confirm_advanced_setup "Webeditor" "email server variables, nginx reverse proxy, domain or public IP setup, and optional TLS certificate configuration"; then
   run_tracked_phase "$COMPONENT_NAME" "09_advanced_setup" "$BASE_DIR/phases/09_advanced_setup.sh" "Advanced setup"
 else
   log_info "Skipping advanced setup"

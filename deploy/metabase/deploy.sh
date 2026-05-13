@@ -43,7 +43,7 @@ fi
 run_tracked_phase "$COMPONENT_NAME" "01_preflight" "$BASE_DIR/phases/01_preflight.sh" "Preflight checks"
 run_tracked_phase "$COMPONENT_NAME" "02_prepare_app" "$BASE_DIR/phases/02_prepare_app.sh" "Prepare application"
 run_tracked_phase "$COMPONENT_NAME" "03_systemd" "$BASE_DIR/phases/03_systemd.sh" "Systemd setup"
-if confirm "Continue to advanced setup?"; then
+if confirm_advanced_setup "Metabase" "nginx reverse proxy, domain or public IP setup, and optional TLS certificate configuration"; then
   run_tracked_phase "$COMPONENT_NAME" "04_nginx_setup" "$BASE_DIR/phases/04_nginx_setup.sh" "Nginx setup"
 else
   log_info "Skipping advanced setup"

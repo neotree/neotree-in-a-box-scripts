@@ -1,3 +1,5 @@
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 -- public.nt_aliases definition
 
 -- Drop table

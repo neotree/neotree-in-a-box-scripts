@@ -40,6 +40,15 @@ confirm_or_exit() {
   fi
 }
 
+confirm_advanced_setup() {
+  local component="$1"
+  local includes="$2"
+
+  log_info "$component advanced setup is OPTIONAL."
+  log_info "Advanced setup includes: $includes"
+  confirm "Do you want to proceed with advanced setup? Choose no to skip this optional process."
+}
+
 apt_update_once() {
   if [ "$APT_UPDATED" -eq 0 ]; then
     sudo apt update
@@ -154,4 +163,21 @@ EOF
 
   log_error "Could not start PostgreSQL using systemctl, service, or pg_ctlcluster."
   return 1
+}
+
+ensure_postgresql_contrib() {
+  if ! command -v dpkg-query >/dev/null 2>&1; then
+    log_warn "Cannot verify postgresql-contrib because dpkg-query is not available"
+    return 0
+  fi
+
+  if dpkg-query -W -f='${Status}' postgresql-contrib 2>/dev/null | grep -q "install ok installed"; then
+    log_info "postgresql-contrib is installed"
+    return 0
+  fi
+
+  log_warn "postgresql-contrib is not installed; it provides PostgreSQL extension files such as uuid-ossp"
+  confirm_or_exit "Install postgresql-contrib?"
+  apt_update_once
+  sudo apt install -y postgresql-contrib
 }
