@@ -1,0 +1,4 @@
+# Keep the old Kedro datapipeline stack installable on Python 3.8.
+# Newer notebook 7.x releases pull jupyterlab>=4.4.9, which is not available
+# for Python 3.8, so great_expectations must resolve against notebook 6.x.
+notebook<7
