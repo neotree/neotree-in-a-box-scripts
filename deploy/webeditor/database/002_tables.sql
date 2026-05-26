@@ -80,7 +80,7 @@ CREATE INDEX config_keys_search_index ON public.nt_config_keys USING gin ((((to_
 CREATE TABLE public.nt_data_keys (
 	id serial4 NOT NULL,
 	"uuid" uuid DEFAULT md5(random()::text || clock_timestamp()::text)::uuid NOT NULL,
-	unique_key uuid DEFAULT md5(random()::text || clock_timestamp()::text)::uuid NOT NULL,
+	unique_key text DEFAULT (md5(random()::text || clock_timestamp()::text)::uuid)::text NOT NULL,
 	"name" text NOT NULL,
 	"label" text DEFAULT ''::text NOT NULL,
 	ref_id text NULL,
@@ -560,7 +560,7 @@ CREATE TABLE public.nt_data_keys_drafts (
 	id serial4 NOT NULL,
 	"uuid" uuid DEFAULT md5(random()::text || clock_timestamp()::text)::uuid NOT NULL,
 	"name" text NOT NULL,
-	unique_key uuid NOT NULL,
+	unique_key text NOT NULL,
 	data_key_id uuid NULL,
 	"data" jsonb NOT NULL,
 	created_at timestamp DEFAULT now() NOT NULL,

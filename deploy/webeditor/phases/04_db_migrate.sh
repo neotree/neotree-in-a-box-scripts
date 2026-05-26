@@ -1,6 +1,7 @@
 set -euo pipefail
 source "$(dirname "$0")/../../lib/log.sh"
 source "$(dirname "$0")/../../lib/dotenv.sh"
+source "$(dirname "$0")/../../lib/prompt.sh"
 
 APP_DIR="${APP_DIR:-$HOME/neotree/neotree-editor}"
 ENV_FILE="${ENV_FILE:-$APP_DIR/.env}"
@@ -201,10 +202,8 @@ prompt_password() {
   local password_one=""
   local password_two=""
   while true; do
-    read -r -s -p "WebEditor admin password: " password_one
-    printf '\n'
-    read -r -s -p "Confirm WebEditor admin password: " password_two
-    printf '\n'
+    password_one="$(prompt_secret "WebEditor admin password")"
+    password_two="$(prompt_secret "Confirm WebEditor admin password")"
 
     if [ -z "$password_one" ]; then
       log_error "WebEditor admin password is required."
