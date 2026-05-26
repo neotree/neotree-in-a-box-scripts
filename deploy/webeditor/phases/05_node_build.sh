@@ -9,10 +9,18 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-if [ -f package-lock.json ]; then
-  npm ci
+NPM_INSTALL_FLAGS="${NPM_INSTALL_FLAGS:---legacy-peer-deps}"
+
+if [ -n "$NPM_INSTALL_FLAGS" ]; then
+  log_info "Installing node dependencies with npm flags: $NPM_INSTALL_FLAGS"
 else
-  npm install
+  log_info "Installing node dependencies"
+fi
+
+if [ -f package-lock.json ]; then
+  npm ci $NPM_INSTALL_FLAGS
+else
+  npm install $NPM_INSTALL_FLAGS
 fi
 if npm run | grep -qE " build($|:)"; then
   npm run build
