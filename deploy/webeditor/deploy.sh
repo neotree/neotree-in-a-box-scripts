@@ -13,7 +13,7 @@ RUN_LOG="$LOG_DIR/deploy_$(date +%Y%m%d_%H%M%S).log"
 exec > >(tee -a "$RUN_LOG") 2>&1
 trap 'log_error "Deployment failed at line $LINENO. See $RUN_LOG"; exit 1' ERR
 
-log_component "Starting Neotree Webeditor deployment"
+log_deploy "Starting Neotree Webeditor deployment"
 log_info "Deploy log: $RUN_LOG"
 
 COMPONENT_NAME="webeditor"

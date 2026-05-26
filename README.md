@@ -29,6 +29,7 @@ Each deploy script will offer to install missing tools (uses `sudo apt`).
 bash deploy/deploy.sh
 ```
 - Runs node-api, webeditor, datapipeline, then metabase.
+- At startup, choose express installation to use recommended defaults automatically and skip optional advanced setup.
 - Logs per component are written to `deploy/<component>/logs/deploy_YYYYMMDD_HHMMSS.log`.
 - Progress is saved under `deploy/state/`. Re-running `deploy/deploy.sh` resumes from the next unfinished phase/component instead of restarting completed work.
 - Set `FORCE_DEPLOY=1` to clear saved progress for the components you rerun and execute them from scratch.
@@ -69,6 +70,7 @@ The deployer uses `python3.8` explicitly (overridable with `PYTHON_BIN`).
 ## Environment overrides (advanced)
 You can override locations or repo sources via env vars before running a script, e.g.:
 ```bash
+INSTALL_MODE=express bash deploy/deploy.sh
 APP_ROOT=$HOME/neotree-test UPDATE_REPO=1 bash deploy/datapipeline/deploy.sh
 DATAPIPELINE_REPO=https://github.com/yourfork/datapipeline.git bash deploy/datapipeline/deploy.sh
 PYTHON_BIN=python3.8 bash deploy/datapipeline/deploy.sh

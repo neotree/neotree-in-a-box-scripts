@@ -40,3 +40,6 @@ log_success() {
 log_component() {
   _log_emit "[COMPONENT]" "$(_log_color "\033[1;35m")" "info.log" "$1"
 }
+log_deploy() {
+  _log_emit "[DEPLOY]" "$(_log_color "\033[1;36m")" "info.log" "$1"
+}

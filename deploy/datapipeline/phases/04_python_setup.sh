@@ -22,6 +22,8 @@ if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
   exit 1
 fi
 
+ensure_datapipeline_build_prereqs "$PYTHON_BIN"
+
 if [ ! -d "$VENV_DIR" ]; then
   log_info "Creating virtual environment at $VENV_DIR using $PYTHON_BIN"
   "$PYTHON_BIN" -m venv "$VENV_DIR"

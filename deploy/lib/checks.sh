@@ -44,6 +44,11 @@ confirm_advanced_setup() {
   local component="$1"
   local includes="$2"
 
+  if [ "${SKIP_ADVANCED_SETUP:-0}" = "1" ]; then
+    log_info "Skipping $component advanced setup (SKIP_ADVANCED_SETUP=1)"
+    return 1
+  fi
+
   log_info "$component advanced setup is OPTIONAL."
   log_info "Advanced setup includes: $includes"
   confirm "Do you want to proceed with advanced setup? Choose no to skip this optional process."
@@ -65,6 +70,54 @@ ensure_cmd() {
   else
     log_info "$1 is installed"
   fi
+}
+
+python_header_available() {
+  local python_bin="${1:-python3.8}"
+  "$python_bin" - <<'PY' >/dev/null 2>&1
+import sysconfig
+from pathlib import Path
+include_dir = sysconfig.get_paths().get("include", "")
+raise SystemExit(0 if include_dir and (Path(include_dir) / "Python.h").exists() else 1)
+PY
+}
+
+libpq_header_available() {
+  local include_dir=""
+
+  if command -v pg_config >/dev/null 2>&1; then
+    include_dir="$(pg_config --includedir 2>/dev/null || true)"
+    if [ -n "$include_dir" ] && [ -f "$include_dir/libpq-fe.h" ]; then
+      return 0
+    fi
+  fi
+
+  [ -f /usr/include/postgresql/libpq-fe.h ]
+}
+
+ensure_datapipeline_build_prereqs() {
+  local python_bin="${1:-python3.8}"
+  local missing_build_packages=()
+
+  if ! python_header_available "$python_bin"; then
+    missing_build_packages+=(python3.8-dev)
+  fi
+  if ! command -v gcc >/dev/null 2>&1; then
+    missing_build_packages+=(build-essential)
+  fi
+  if ! libpq_header_available; then
+    missing_build_packages+=(libpq-dev)
+  fi
+
+  if [ "${#missing_build_packages[@]}" -eq 0 ]; then
+    log_info "Python/PostgreSQL build prerequisites are available"
+    return 0
+  fi
+
+  log_warn "Missing Python/PostgreSQL build prerequisites: ${missing_build_packages[*]}"
+  confirm_or_exit "Install datapipeline build prerequisites?"
+  apt_update_once
+  sudo apt install -y "${missing_build_packages[@]}"
 }
 
 postgresql_service_available() {
