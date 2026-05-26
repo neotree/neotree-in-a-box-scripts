@@ -1,2 +1,2 @@
-ALTER TABLE public.sessions 
-    ALTER COLUMN id SET DEFAULT nextval('public.sessions_id_seq');
+-- WebEditor does not manage API session tables.
+-- This migration is intentionally empty; session defaults belong to node-api.
