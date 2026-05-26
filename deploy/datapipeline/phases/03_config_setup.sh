@@ -11,6 +11,7 @@ CONF_DIR="$APP_DIR/conf/local"
 DB_FILE="$CONF_DIR/database.ini"
 HOSP_FILE="$CONF_DIR/hospitals.ini"
 NODE_ENV_FILE="${NODE_ENV_FILE:-$APP_ROOT/node-api/.env}"
+WEBEDITOR_ENV_FILE="${WEBEDITOR_ENV_FILE:-$APP_ROOT/neotree-editor/.env}"
 
 if [ ! -d "$APP_DIR" ]; then
   log_error "Datapipeline directory not found: $APP_DIR. Run clone phase first."
@@ -131,6 +132,16 @@ else
   [ -n "$PGPASSWORD" ] && default_password="$PGPASSWORD"
 fi
 
+if [ -f "$WEBEDITOR_ENV_FILE" ]; then
+  log_info "Loading WebEditor defaults from $WEBEDITOR_ENV_FILE"
+  webeditor_port="$(dotenv_get "$WEBEDITOR_ENV_FILE" PORT || true)"
+  webeditor_server_port="$(dotenv_get "$WEBEDITOR_ENV_FILE" SERVER_PORT || true)"
+  webeditor_api_key="$(dotenv_get "$WEBEDITOR_ENV_FILE" API_KEY || true)"
+
+  default_webeditor="http://localhost:${webeditor_port:-${webeditor_server_port:-3001}}"
+  [ -n "$webeditor_api_key" ] && default_webeditor_key="$webeditor_api_key"
+fi
+
 if [ -f "$DB_FILE" ]; then
   if confirm "database.ini already exists. Recreate it now?"; then
     backup_if_exists "$DB_FILE"
@@ -168,7 +179,12 @@ while true; do
   CONNECT_WEBEDITOR=0
   if confirm_with_back "Configure webeditor connection now? Press b to go back to the previous step."; then
     CONNECT_WEBEDITOR=1
-    WEBEDITOR_URL="$(prompt "Webeditor URL" "$default_webeditor")"
+    if [ -n "$default_webeditor" ]; then
+      WEBEDITOR_URL="$default_webeditor"
+      log_info "Using WebEditor URL from previous setup: $WEBEDITOR_URL"
+    else
+      WEBEDITOR_URL="$(prompt "Webeditor URL" "$default_webeditor")"
+    fi
     WEBEDITOR_API_KEY="$default_webeditor_key"
     break
   else

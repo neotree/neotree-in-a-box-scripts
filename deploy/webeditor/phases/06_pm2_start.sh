@@ -3,7 +3,7 @@ source "$(dirname "$0")/../../lib/log.sh"
 APP_DIR="${APP_DIR:-$HOME/neotree/neotree-editor}"
 cd "$APP_DIR"
 
-PM2_APP_NAME="${PM2_APP_NAME:-neotree-api}"
+PM2_APP_NAME="${PM2_APP_NAME:-neotree-webeditor}"
 DEPLOY_ENV="${DEPLOY_ENV:-production}"
 
 case "$DEPLOY_ENV" in
@@ -19,4 +19,5 @@ if pm2 describe "$PM2_APP_NAME" >/dev/null 2>&1; then
 fi
 
 pm2 start npm --name "$PM2_APP_NAME" -- run "$START_SCRIPT"
+pm2 describe "$PM2_APP_NAME" >/dev/null
 pm2 save

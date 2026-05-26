@@ -69,8 +69,26 @@ run_tracked_phase() {
   local description="${4:-$phase}"
 
   if progress_is_phase_complete "$component" "$phase"; then
-    log_info "Skipping $component phase $phase ($description); already completed"
-    return 0
+    case "$phase" in
+      06_pm2_start)
+        case "$component" in
+          node-api) pm2_app_name="${PM2_APP_NAME:-neotree-api}" ;;
+          webeditor) pm2_app_name="${PM2_APP_NAME:-neotree-webeditor}" ;;
+          *) pm2_app_name="${PM2_APP_NAME:-$component}" ;;
+        esac
+
+        if command -v pm2 >/dev/null 2>&1 && ! pm2 describe "$pm2_app_name" >/dev/null 2>&1; then
+          log_warn "$component phase $phase was marked complete, but PM2 app '$pm2_app_name' is missing; rerunning"
+        else
+          log_info "Skipping $component phase $phase ($description); already completed"
+          return 0
+        fi
+        ;;
+      *)
+        log_info "Skipping $component phase $phase ($description); already completed"
+        return 0
+        ;;
+    esac
   fi
 
   log_info "Running $component phase $phase ($description)"
