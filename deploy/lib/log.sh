@@ -37,3 +37,6 @@ log_error() {
 log_success() {
   _log_emit "[SUCCESS]" "$(_log_color "\033[1;32m")" "success.log" "$1"
 }
+log_component() {
+  _log_emit "[COMPONENT]" "$(_log_color "\033[1;35m")" "info.log" "$1"
+}

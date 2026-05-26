@@ -9,7 +9,7 @@ ensure_cmd git git
 PYTHON_BIN="${PYTHON_BIN:-python3.8}"
 
 preflight_step=1
-while [ "$preflight_step" -le 4 ]; do
+while [ "$preflight_step" -le 5 ]; do
   case "$preflight_step" in
     1)
       if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
@@ -90,6 +90,45 @@ while [ "$preflight_step" -le 4 ]; do
       fi
       ;;
     4)
+      missing_build_packages=()
+      if ! "$PYTHON_BIN" - <<'PY' >/dev/null 2>&1
+import sysconfig
+from pathlib import Path
+include_dir = sysconfig.get_paths().get("include", "")
+raise SystemExit(0 if include_dir and (Path(include_dir) / "Python.h").exists() else 1)
+PY
+      then
+        missing_build_packages+=(python3.8-dev)
+      fi
+      if ! command -v gcc >/dev/null 2>&1; then
+        missing_build_packages+=(build-essential)
+      fi
+      if ! command -v pg_config >/dev/null 2>&1; then
+        missing_build_packages+=(libpq-dev)
+      fi
+
+      if [ "${#missing_build_packages[@]}" -gt 0 ]; then
+        log_warn "Missing Python/PostgreSQL build prerequisites: ${missing_build_packages[*]}"
+        if confirm_with_back "Install datapipeline build prerequisites now? Press b to go back to the previous step."; then
+          apt_update_once
+          sudo apt install -y "${missing_build_packages[@]}"
+        else
+          case $? in
+            2)
+              preflight_step=3
+              continue
+              ;;
+            *)
+              log_error "User declined. Exiting."
+              exit 1
+              ;;
+          esac
+        fi
+      else
+        log_info "Python/PostgreSQL build prerequisites are available"
+      fi
+      ;;
+    5)
       log_info "python3.8-venv and psql checks complete"
       break
       ;;

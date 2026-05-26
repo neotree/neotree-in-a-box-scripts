@@ -18,7 +18,7 @@ run_component() {
   local component="$1"
   local script_path="$2"
 
-  log_info "Starting component: $component"
+  log_component "Starting component: $component"
   bash "$script_path"
   log_success "Component succeeded: $component"
 }

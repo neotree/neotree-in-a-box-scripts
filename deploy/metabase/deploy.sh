@@ -13,7 +13,7 @@ RUN_LOG="$LOG_DIR/deploy_$(date +%Y%m%d_%H%M%S).log"
 exec > >(tee -a "$RUN_LOG") 2>&1
 trap 'log_error "Metabase deploy failed at line $LINENO. See $RUN_LOG"; exit 1' ERR
 
-log_info "Starting Metabase deployment"
+log_component "Starting Metabase deployment"
 log_info "Deploy log: $RUN_LOG"
 
 # Shared defaults (can be overridden via env)
