@@ -1,6 +1,7 @@
 set -euo pipefail
 source "$(dirname "$0")/../../lib/log.sh"
 source "$(dirname "$0")/../../lib/dotenv.sh"
+source "$(dirname "$0")/../../lib/checks.sh"
 APP_DIR="${APP_DIR:-$HOME/neotree/neotree-editor}"
 ENV_FILE="${ENV_FILE:-$APP_DIR/.env}"
 cd "$APP_DIR"
@@ -8,6 +9,8 @@ cd "$APP_DIR"
 PM2_APP_NAME="${PM2_APP_NAME:-neotree-webeditor}"
 DEPLOY_ENV="${DEPLOY_ENV:-production}"
 SERVER_PORT="3001"
+
+ensure_pm2
 
 if [ -f "$ENV_FILE" ]; then
   dotenv_read_var "$ENV_FILE" PORT "3001"

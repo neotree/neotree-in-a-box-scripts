@@ -89,6 +89,8 @@ install_nodesource_node() {
   sudo bash "$setup_script"
   sudo apt install -y nodejs
   rm -f "$setup_script"
+  hash -r 2>/dev/null || true
+  install_pm2_global
 }
 
 ensure_node_major() {
@@ -120,6 +122,36 @@ ensure_node_major() {
   fi
 
   log_info "Node.js $(node --version) and npm $(npm --version) are ready"
+}
+
+install_pm2_global() {
+  local npm_bin
+
+  npm_bin="$(command -v npm || true)"
+  if [ -z "$npm_bin" ]; then
+    log_error "npm not found; cannot install pm2"
+    exit 1
+  fi
+
+  log_info "Installing pm2 globally"
+  if echo "$npm_bin" | grep -q "$HOME"; then
+    "$npm_bin" install -g pm2
+  else
+    sudo "$npm_bin" install -g pm2
+  fi
+  hash -r 2>/dev/null || true
+}
+
+ensure_pm2() {
+  hash -r 2>/dev/null || true
+  if command -v pm2 >/dev/null 2>&1; then
+    log_info "pm2 is installed at $(command -v pm2)"
+    return 0
+  fi
+
+  log_warn "pm2 not found"
+  confirm_or_exit "Install pm2 globally?"
+  install_pm2_global
 }
 
 python_header_available() {

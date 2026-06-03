@@ -96,34 +96,7 @@ while [ "$preflight_step" -le 4 ]; do
       fi
       ;;
     4)
-      if ! command -v pm2 >/dev/null 2>&1; then
-        log_warn "pm2 not found"
-        if confirm_with_back "Install pm2 globally? Press b to go back to the previous step."; then
-          NPM_BIN="$(command -v npm || true)"
-          if [ -z "$NPM_BIN" ]; then
-            log_error "npm not found after install"
-            exit 1
-          fi
-          if echo "$NPM_BIN" | grep -q "$HOME"; then
-            "$NPM_BIN" install -g pm2
-          else
-            sudo "$NPM_BIN" install -g pm2
-          fi
-        else
-          case $? in
-            2)
-              preflight_step=3
-              continue
-              ;;
-            *)
-              log_error "User declined. Exiting."
-              exit 1
-              ;;
-          esac
-        fi
-      else
-        log_info "pm2 is installed"
-      fi
+      ensure_pm2
       ;;
   esac
   preflight_step=$((preflight_step + 1))
