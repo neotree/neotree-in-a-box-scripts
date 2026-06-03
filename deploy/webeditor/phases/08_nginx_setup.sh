@@ -45,7 +45,7 @@ KEY_PATH=""
 SSL_DIR="/etc/ssl/neotree"
 CRT_NAME="${NGINX_SITE_NAME}.crt"
 KEY_NAME="${NGINX_SITE_NAME}.key"
-SERVER_PORT="3000"
+SERVER_PORT="3001"
 
 if [ "${PUBLIC_IP_NGINX_SETUP:-0}" = "1" ]; then
   setup_step="server_name"
@@ -72,10 +72,10 @@ while true; do
     server_name)
       ensure_cmd nginx nginx
 
-      SERVER_PORT="3000"
+      SERVER_PORT="3001"
       if [ -f "$ENV_FILE" ]; then
-        dotenv_read_var "$ENV_FILE" SERVER_PORT "3000"
-        SERVER_PORT="${SERVER_PORT:-3000}"
+        dotenv_read_var "$ENV_FILE" SERVER_PORT "3001"
+        SERVER_PORT="${SERVER_PORT:-3001}"
       fi
 
       if [ "${PUBLIC_IP_NGINX_SETUP:-0}" = "1" ]; then
