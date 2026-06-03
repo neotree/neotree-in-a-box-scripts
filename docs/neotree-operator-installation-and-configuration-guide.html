@@ -144,8 +144,11 @@
   <h3>5.1 Log in to the Server</h3>
   <p>Log in to the approved Ubuntu 24 server using the account provided by the server administrator. The account must be allowed to run administrative commands using sudo.</p>
 
-  <h3>5.2 Place the Deployment Scripts on the Server</h3>
-  <p>Place the Neotree In-A-Box deployment folder on the server. If the folder has already been copied, move into that folder before continuing.</p>
+  <h3>5.2 Get the Deployment Scripts on the Server</h3>
+  <p>The preferred method is to clone the approved repository using git. This makes it easier to confirm the source of the scripts and to receive approved updates later.</p>
+  <div class="command">git clone https://github.com/neotree/neotree-in-a-box-scripts.git
+cd neotree-in-a-box-scripts</div>
+  <p>If git access is not available, the deployment folder may be copied to the server by an approved operator. This should be treated as a fallback option. After copying, move into the folder before continuing.</p>
   <div class="command">cd neotree-in-a-box-scripts</div>
 
   <h3>5.3 Allow the Deployment Scripts to Run</h3>
@@ -155,7 +158,7 @@
   <h3>5.4 Start the Full Installation</h3>
   <p>Run the full installation command below. The installer follows the same order every time: Neotree API, WebEditor, Data Pipeline, and Metabase.</p>
   <div class="command">bash deploy/deploy.sh</div>
-  <p>When prompted, choose the recommended express installation unless the Ministry or programme team has requested a custom setup. Express installation uses the standard defaults and avoids unnecessary questions.</p>
+  <p>When prompted, choose the recommended express installation unless the Ministry or programme team has requested a custom setup. Express installation uses the standard defaults and avoids unnecessary questions. Express installation does not ask for domain names or certificates. Instead, after all services are installed, it configures browser access using the server public IP address.</p>
 
   <h3>5.5 Installation Order</h3>
   <p>The installation order matters because later services use information created by earlier services. Operators should allow the installer to complete each stage in the order shown below.</p>
@@ -251,10 +254,13 @@ discharges = discharge-script-id</div>
 
   <h3>6.8 Public Web Access Using nginx</h3>
   <p>nginx is the web server used to make approved services available through a public address. In this deployment, WebEditor and Metabase are the public-facing services. WebEditor is used by approved staff to manage forms. Metabase is used by approved staff to view reports and dashboards. The Neotree API supports the system behind the scenes and does not normally need to be presented as a public page for general users.</p>
-  <p>Advanced setup can configure public web access through nginx and optional HTTPS certificates. If a domain is not ready, the setup can use the server public IP address. If certificates are not ready, plain HTTP can be used temporarily where approved by the Ministry or programme owner.</p>
+  <p>In express installation, domain and certificate questions are skipped. The installer configures WebEditor at the server public IP address and Metabase at the same public IP address using port 8080. At the end of setup, the installer prints both URLs in green so the operator can record and test them immediately.</p>
+  <div class="example">WebEditor via: http://SERVER_PUBLIC_IP
+Metabase via: http://SERVER_PUBLIC_IP:8080</div>
+  <p>Advanced setup can still configure public web access through nginx and optional HTTPS certificates. If a domain is not ready, the setup can use the server public IP address. If certificates are not ready, plain HTTP can be used temporarily where approved by the Ministry or programme owner.</p>
 
   <h3>6.9 WebEditor nginx Setup</h3>
-  <p>WebEditor nginx setup should be completed when the WebEditor needs to be accessed by approved users outside the server. The operator may complete this during WebEditor advanced setup, or later by running only the WebEditor nginx phase.</p>
+  <p>WebEditor nginx setup should be completed when the WebEditor needs to be accessed by approved users outside the server. In express installation, this is done automatically using the server public IP address. The operator may also run only the WebEditor nginx phase later if the public address needs to be refreshed.</p>
   <div class="command">bash deploy/webeditor/phases/08_nginx_setup.sh</div>
   <p>Before running this step, confirm the approved public address for WebEditor. This may be a domain name or the server public IP address. If using HTTPS, confirm that the certificate fullchain file and private key file are already available on the server.</p>
   <table>
@@ -282,7 +288,7 @@ discharges = discharge-script-id</div>
   <p>After setup, nginx is tested and reloaded by the script. If the public address does not open, check that the domain points to the server, the firewall allows web traffic, and the WebEditor service is running.</p>
 
   <h3>6.10 Metabase nginx Setup</h3>
-  <p>Metabase nginx setup should be completed when dashboards and reports need to be accessed by approved users through a public address. The operator may complete this during Metabase advanced setup, or later by running only the Metabase nginx phase.</p>
+  <p>Metabase nginx setup should be completed when dashboards and reports need to be accessed by approved users through a public address. In express installation, this is done automatically using the server public IP address and port 8080. The operator may also run only the Metabase nginx phase later if the public address needs to be refreshed.</p>
   <div class="command">bash deploy/metabase/phases/04_nginx_setup.sh</div>
   <p>Before running this step, confirm the approved public address for Metabase. This may be a domain name or the server public IP address. If using HTTPS, confirm that the certificate fullchain file and private key file are already available on the server.</p>
   <table>

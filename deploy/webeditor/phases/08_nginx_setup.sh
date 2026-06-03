@@ -7,6 +7,7 @@ APP_DIR="${APP_DIR:-$HOME/neotree/neotree-editor}"
 ENV_FILE="${ENV_FILE:-$APP_DIR/.env}"
 NGINX_SITE_NAME="${NGINX_SITE_NAME:-neotree-webeditor}"
 NGINX_SERVER_NAME="${NGINX_SERVER_NAME:-}"
+NGINX_LISTEN_PORT="${NGINX_LISTEN_PORT:-80}"
 
 prompt() {
   local label="$1" default_value="${2:-}" input
@@ -46,6 +47,10 @@ CRT_NAME="${NGINX_SITE_NAME}.crt"
 KEY_NAME="${NGINX_SITE_NAME}.key"
 SERVER_PORT="3000"
 
+if [ "${PUBLIC_IP_NGINX_SETUP:-0}" = "1" ]; then
+  setup_step="server_name"
+fi
+
 while true; do
   case "$setup_step" in
     confirm)
@@ -73,14 +78,20 @@ while true; do
         SERVER_PORT="${SERVER_PORT:-3000}"
       fi
 
-      server_name_input="$(prompt "Webeditor domain (leave blank to use server public IP)" "$NGINX_SERVER_NAME")"
-      if [ -z "$server_name_input" ]; then
-        NGINX_SERVER_NAME="$(detect_public_ip)"
-        log_info "Using detected IP as server_name: $NGINX_SERVER_NAME"
+      if [ "${PUBLIC_IP_NGINX_SETUP:-0}" = "1" ]; then
+        NGINX_SERVER_NAME="${NGINX_SERVER_NAME:-$(detect_public_ip)}"
+        log_info "Using public IP as WebEditor server_name: $NGINX_SERVER_NAME"
+        setup_step="write"
       else
-        NGINX_SERVER_NAME="$server_name_input"
+        server_name_input="$(prompt "Webeditor domain (leave blank to use server public IP)" "$NGINX_SERVER_NAME")"
+        if [ -z "$server_name_input" ]; then
+          NGINX_SERVER_NAME="$(detect_public_ip)"
+          log_info "Using detected IP as server_name: $NGINX_SERVER_NAME"
+        else
+          NGINX_SERVER_NAME="$server_name_input"
+        fi
+        setup_step="tls"
       fi
-      setup_step="tls"
       ;;
     tls)
       if confirm_with_back "Configure TLS with existing certificate files now? Press b to go back to the previous step."; then
@@ -123,7 +134,7 @@ upstream webeditor_local {
 }
 
 server {
-  listen 80;
+  listen ${NGINX_LISTEN_PORT};
   server_name ${NGINX_SERVER_NAME};
   return 301 https://\$host\$request_uri;
 }
@@ -154,7 +165,7 @@ upstream webeditor_local {
 }
 
 server {
-  listen 80;
+  listen ${NGINX_LISTEN_PORT};
   server_name ${NGINX_SERVER_NAME};
 
   location / {
@@ -182,7 +193,7 @@ EOF
       sudo nginx -t
       sudo systemctl reload nginx
 
-      log_success "nginx configured for ${NGINX_SERVER_NAME} -> 127.0.0.1:${SERVER_PORT}"
+      log_success "nginx configured for ${NGINX_SERVER_NAME}:${NGINX_LISTEN_PORT} -> 127.0.0.1:${SERVER_PORT}"
       if [ "$USE_TLS" -eq 1 ]; then
         log_success "TLS enabled; certs staged under $SSL_DIR"
       fi

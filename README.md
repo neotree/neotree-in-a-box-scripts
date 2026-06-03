@@ -1,8 +1,3 @@
-# Before running the commands below, make the `deploy` folder executable:
-```bash
-chmod -R +x deploy
-```
-
 # neotree-in-a-box-scripts
 
 Deployment helper scripts for the Neotree stack. Each component has a self-contained deployer under `deploy/` and a shared logging/checks library in `deploy/lib/`.
@@ -26,10 +21,13 @@ Each deploy script will offer to install missing tools (uses `sudo apt`).
 
 ## Quick start (full stack)
 ```bash
+git clone https://github.com/neotree/neotree-in-a-box-scripts.git
+cd neotree-in-a-box-scripts
+chmod -R +x deploy
 bash deploy/deploy.sh
 ```
 - Runs node-api, webeditor, datapipeline, then metabase.
-- At startup, choose express installation to use recommended defaults automatically and skip optional advanced setup.
+- At startup, choose express installation to use recommended defaults automatically. Express skips domain/TLS prompts, then configures public-IP browser access for WebEditor at `http://<server-public-ip>` and Metabase at `http://<server-public-ip>:8080`.
 - Logs per component are written to `deploy/<component>/logs/deploy_YYYYMMDD_HHMMSS.log`.
 - Progress is saved under `deploy/state/`. Re-running `deploy/deploy.sh` resumes from the next unfinished phase/component instead of restarting completed work.
 - Set `FORCE_DEPLOY=1` to clear saved progress for the components you rerun and execute them from scratch.
@@ -107,6 +105,7 @@ PYTHON_BIN=python3.8 bash deploy/datapipeline/deploy.sh
 - TLS prompt skip ⇒ plain HTTP on port 80.
 - Cert/key staged under `/etc/ssl/neotree/` named per site (e.g., `neotree-node-api.crt`).
 - Environment knobs: `NGINX_SITE_NAME`, `NGINX_SERVER_NAME`, `SKIP_NGINX_SETUP=1` (to bypass), `MB_PORT`, `MB_VERSION`, `MB_DOWNLOAD_URL`, `APP_ROOT`, `NODE_ENV_FILE`, `PYTHON_BIN` (datapipeline), `DATAPIPELINE_REPO`, `DATAPIPELINE_BRANCH`, `UPDATE_REPO=1`.
+- Express public-IP access can be disabled with `SETUP_PUBLIC_IP_ACCESS=0`. Override detected IP with `PUBLIC_SERVER_IP`.
 
 ## Troubleshooting
 - Check the latest log file under each component’s `deploy/logs/` directory.

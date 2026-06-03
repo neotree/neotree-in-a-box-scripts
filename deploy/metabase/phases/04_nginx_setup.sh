@@ -4,6 +4,8 @@ source "$(dirname "$0")/../../lib/checks.sh"
 
 MB_PORT="${MB_PORT:-6000}"
 SERVICE_NAME="${SERVICE_NAME:-metabase}"
+NGINX_SERVER_NAME="${NGINX_SERVER_NAME:-}"
+NGINX_LISTEN_PORT="${NGINX_LISTEN_PORT:-80}"
 
 prompt() {
   local label="$1" default_value="${2:-}" input
@@ -29,10 +31,15 @@ detect_public_ip() {
   echo "${ip:-127.0.0.1}"
 }
 
-server_name="$(prompt "Metabase domain (leave blank to use server public IP)" "")"
-if [ -z "$server_name" ]; then
-  server_name="$(detect_public_ip)"
-  log_info "Using detected IP as server_name: $server_name"
+if [ "${PUBLIC_IP_NGINX_SETUP:-0}" = "1" ]; then
+  server_name="${NGINX_SERVER_NAME:-$(detect_public_ip)}"
+  log_info "Using public IP as Metabase server_name: $server_name"
+else
+  server_name="$(prompt "Metabase domain (leave blank to use server public IP)" "$NGINX_SERVER_NAME")"
+  if [ -z "$server_name" ]; then
+    server_name="$(detect_public_ip)"
+    log_info "Using detected IP as server_name: $server_name"
+  fi
 fi
 
 setup_step="tls"
@@ -40,6 +47,10 @@ USE_TLS=0
 CERT_PATH=""
 KEY_PATH=""
 SSL_DIR="/etc/ssl/neotree"
+
+if [ "${PUBLIC_IP_NGINX_SETUP:-0}" = "1" ]; then
+  setup_step="write"
+fi
 
 while true; do
   case "$setup_step" in
@@ -77,6 +88,7 @@ while true; do
       setup_step="write"
       ;;
     write)
+      ensure_cmd nginx nginx
       SITE_FILE="/etc/nginx/sites-available/${SERVICE_NAME}.conf"
 
       log_info "Writing nginx config to $SITE_FILE"
@@ -87,7 +99,7 @@ upstream metabase_local {
 }
 
 server {
-  listen 80;
+  listen ${NGINX_LISTEN_PORT};
   server_name ${server_name};
   return 301 https://\$host\$request_uri;
 }
@@ -115,7 +127,7 @@ upstream metabase_local {
 }
 
 server {
-  listen 80;
+  listen ${NGINX_LISTEN_PORT};
   server_name ${server_name};
 
   location / {
@@ -137,7 +149,7 @@ EOF
       log_info "Reloading nginx"
       sudo systemctl reload nginx
 
-      log_success "Nginx configured for Metabase at http://${server_name}"
+      log_success "Nginx configured for Metabase at http://${server_name}:${NGINX_LISTEN_PORT}"
       if [ "$USE_TLS" -eq 1 ]; then
         log_success "TLS enabled; certificate staged under $SSL_DIR"
       fi
