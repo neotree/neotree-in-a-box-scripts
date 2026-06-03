@@ -149,6 +149,11 @@ EOF
       log_info "Reloading nginx"
       sudo systemctl reload nginx
 
+      if ! curl -fsS --max-time 5 "http://127.0.0.1:${NGINX_LISTEN_PORT}/api/health" >/dev/null 2>&1; then
+        log_error "nginx is not proxying Metabase on local port ${NGINX_LISTEN_PORT}. Check Metabase with: curl -I http://127.0.0.1:${MB_PORT}/api/health"
+        exit 1
+      fi
+
       log_success "Nginx configured for Metabase at http://${server_name}:${NGINX_LISTEN_PORT}"
       if [ "$USE_TLS" -eq 1 ]; then
         log_success "TLS enabled; certificate staged under $SSL_DIR"

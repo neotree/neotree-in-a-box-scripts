@@ -193,6 +193,11 @@ EOF
       sudo nginx -t
       sudo systemctl reload nginx
 
+      if ! curl -fsS --max-time 5 "http://127.0.0.1:${NGINX_LISTEN_PORT}" >/dev/null 2>&1; then
+        log_error "nginx is not proxying WebEditor on local port ${NGINX_LISTEN_PORT}. Check WebEditor with: curl -I http://127.0.0.1:${SERVER_PORT}"
+        exit 1
+      fi
+
       log_success "nginx configured for ${NGINX_SERVER_NAME}:${NGINX_LISTEN_PORT} -> 127.0.0.1:${SERVER_PORT}"
       if [ "$USE_TLS" -eq 1 ]; then
         log_success "TLS enabled; certs staged under $SSL_DIR"

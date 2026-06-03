@@ -92,6 +92,7 @@ print_public_access_summary() {
   printf 'Public access URLs\n'
   printf 'Metabase via: %s\n' "$metabase_url"
   printf 'WebEditor via: %s\n' "$webeditor_url"
+  printf 'If Metabase does not open externally, confirm port 8080 is allowed in the server firewall/security group.\n'
   printf '%b\n' "$reset"
 }
 
