@@ -49,7 +49,7 @@ select_install_mode() {
     return 0
   fi
 
-  read -r -p "Use express installation with recommended defaults? [Y/n]: " answer
+  read -r -p "Use express installation with recommended defaults? [y/n]: " answer
   case "$answer" in
     [Nn]*)
       log_component "Using custom installation: prompts enabled"

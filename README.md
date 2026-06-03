@@ -53,8 +53,10 @@ bash sensitive/undeploy.sh
 - Database setup is streamlined for non-technical installs. The deploy creates one shared PostgreSQL user, `neotree_app`, and component databases with app-name defaults: `node_api`, `webeditor`, `datapipeline`, and `metabase`.
 - Node API and Webeditor core setup no longer prompt for database host, port, database name, username, password, application URLs, API key, or generated secrets. Shared PostgreSQL credentials are written to `~/neotree/.env`; `NEXTAUTH_SECRET` and `JWT_SECRET` are generated automatically when the advanced step is used.
 - After cloning, `deploy/datapipeline/phases/03_config_setup.sh` ensures `conf/local/database.ini` and `conf/local/hospitals.ini` exist.
-- Datapipeline defaults: host `localhost`; database `datapipeline`; user `neotree_app`; password loaded from the shared app-root `.env` when available; country `zimbabwe` (can choose `malawi`); `data_fix` `True`.
-- If a webeditor connection is desired, the script appends `[webeditor]` with `webeditor` URL and `webeditor_api_key`.
+- Datapipeline defaults: host `localhost`; database and password loaded from the node-api/shared PostgreSQL config; user `neotree_app`; country `malawi`; `cron_dir` set to the datapipeline home; `data_fix` `false`; WebEditor URL/API key included in `[postgresql_dev]`.
+- WebEditor generates and persists `API_KEY` during env setup, and migrations seed that same value into `nt_api_keys` for datapipeline access.
+- `hospitals.ini` is generated with a default `[TH]` Test Hospital section. Admission/discharge script IDs are read from the seeded WebEditor `nt_scripts` table when available, with seeded Malawi UUID fallbacks. Override with `DATAPIPELINE_HOSPITAL_CODE`, `DATAPIPELINE_HOSPITAL_NAME`, `DATAPIPELINE_ADMISSION_SCRIPT_ID`, and `DATAPIPELINE_DISCHARGE_SCRIPT_ID`.
+- After the datapipeline Python environment is ready, deploy installs a crontab entry to run `cd $APP_ROOT/datapipeline && env/bin/python -m kedro run --env=dev` every 30 minutes. Override the schedule with `DATAPIPELINE_CRON_SCHEDULE`.
 - Existing ini files are backed up with timestamped `.bak_*` before overwrite.
 
 ### Python 3.8 on Ubuntu 24.04
@@ -104,7 +106,7 @@ PYTHON_BIN=python3.8 bash deploy/datapipeline/deploy.sh
 - Domain prompt blank ⇒ uses detected public IP.
 - TLS prompt skip ⇒ plain HTTP on port 80.
 - Cert/key staged under `/etc/ssl/neotree/` named per site (e.g., `neotree-node-api.crt`).
-- Environment knobs: `NGINX_SITE_NAME`, `NGINX_SERVER_NAME`, `SKIP_NGINX_SETUP=1` (to bypass), `MB_PORT`, `APP_ROOT`, `NODE_ENV_FILE`, `PYTHON_BIN` (datapipeline), `DATAPIPELINE_REPO`, `DATAPIPELINE_BRANCH`, `UPDATE_REPO=1`.
+- Environment knobs: `NGINX_SITE_NAME`, `NGINX_SERVER_NAME`, `SKIP_NGINX_SETUP=1` (to bypass), `MB_PORT`, `MB_VERSION`, `MB_DOWNLOAD_URL`, `APP_ROOT`, `NODE_ENV_FILE`, `PYTHON_BIN` (datapipeline), `DATAPIPELINE_REPO`, `DATAPIPELINE_BRANCH`, `UPDATE_REPO=1`.
 
 ## Troubleshooting
 - Check the latest log file under each component’s `deploy/logs/` directory.

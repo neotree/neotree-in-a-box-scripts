@@ -7,7 +7,8 @@ APP_ROOT="${APP_ROOT:-$HOME/neotree}"
 NODE_ENV_FILE="${NODE_ENV_FILE:-$APP_ROOT/node-api/.env}"
 MB_PORT="${MB_PORT:-6000}"
 MB_MEMORY="${MB_MEMORY:-1G}"
-MB_VERSION="${MB_VERSION:-1.57.0}"
+MB_VERSION="${MB_VERSION:-latest}"
+MB_DOWNLOAD_URL="${MB_DOWNLOAD_URL:-}"
 SERVICE_NAME="${SERVICE_NAME:-metabase}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/metabase}"
 MB_DATABASE="${MB_DATABASE:-metabase}"
@@ -18,10 +19,10 @@ if ! load_shared_pg_env; then
     exit 1
   fi
 
-  dotenv_get "$NODE_ENV_FILE" PGHOST || PGHOST=""
-  dotenv_get "$NODE_ENV_FILE" PGPORT || PGPORT=""
-  dotenv_get "$NODE_ENV_FILE" PGUSER || PGUSER=""
-  dotenv_get "$NODE_ENV_FILE" PGPASSWORD || PGPASSWORD=""
+  PGHOST="$(dotenv_get "$NODE_ENV_FILE" PGHOST || true)"
+  PGPORT="$(dotenv_get "$NODE_ENV_FILE" PGPORT || true)"
+  PGUSER="$(dotenv_get "$NODE_ENV_FILE" PGUSER || true)"
+  PGPASSWORD="$(dotenv_get "$NODE_ENV_FILE" PGPASSWORD || true)"
 fi
 
 if [ -z "$PGHOST" ] || [ -z "$PGPORT" ] || [ -z "$PGUSER" ] || [ -z "$PGPASSWORD" ]; then
@@ -56,7 +57,41 @@ sudo useradd -r -m -U -d "$INSTALL_DIR" -s /bin/false "$SERVICE_NAME" 2>/dev/nul
 log_info "Creating install dir $INSTALL_DIR"
 sudo mkdir -p "$INSTALL_DIR"
 
-JAR_URL="https://downloads.metabase.com/v${MB_VERSION}/metabase.jar"
+metabase_download_url() {
+  if [ -n "$MB_DOWNLOAD_URL" ]; then
+    printf '%s\n' "$MB_DOWNLOAD_URL"
+  elif [ "$MB_VERSION" = "latest" ]; then
+    printf '%s\n' "https://downloads.metabase.com/latest/metabase.jar"
+  else
+    printf '%s\n' "https://downloads.metabase.com/v${MB_VERSION}/metabase.jar"
+  fi
+}
+
+validate_metabase_jar() {
+  local jar="$1" size magic
+  [ -f "$jar" ] || return 1
+  size="$(stat -c '%s' "$jar" 2>/dev/null || echo 0)"
+  if [ "$size" -le 50000000 ]; then
+    log_error "Downloaded Metabase jar is too small (${size} bytes). This usually means the URL returned an error page."
+    return 1
+  fi
+
+  magic="$(dd if="$jar" bs=4 count=1 2>/dev/null | od -An -tx1 | tr -d ' \n')"
+  if [ "$magic" != "504b0304" ]; then
+    log_error "Downloaded Metabase jar is not a valid jar/zip file. First bytes: $magic"
+    return 1
+  fi
+}
+
+JAR_URL="$(metabase_download_url)"
+tmp_jar="$(mktemp /tmp/metabase.jar.XXXXXX)"
+cleanup() {
+  rm -f "$tmp_jar"
+}
+trap cleanup EXIT
+
 log_info "Downloading Metabase ${MB_VERSION} from $JAR_URL"
-sudo curl -L -o "$INSTALL_DIR/metabase.jar" "$JAR_URL"
+curl -fL --retry 3 --retry-delay 2 --connect-timeout 20 -o "$tmp_jar" "$JAR_URL"
+validate_metabase_jar "$tmp_jar"
+sudo install -m 0644 -o "$SERVICE_NAME" -g "$SERVICE_NAME" "$tmp_jar" "$INSTALL_DIR/metabase.jar"
 sudo chown -R "$SERVICE_NAME:$SERVICE_NAME" "$INSTALL_DIR"

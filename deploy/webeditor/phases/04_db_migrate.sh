@@ -39,9 +39,15 @@ dotenv_read_var "$ENV_FILE" PGHOST ""
 dotenv_read_var "$ENV_FILE" PGPORT ""
 dotenv_read_var "$ENV_FILE" PGPASSWORD ""
 dotenv_read_var "$ENV_FILE" PGSSLMODE "prefer"
+dotenv_read_var "$ENV_FILE" API_KEY ""
 
 if [ -z "${PGDATABASE:-}" ] || [ -z "${PGUSER:-}" ] || [ -z "${PGHOST:-}" ] || [ -z "${PGPORT:-}" ] || [ -z "${PGPASSWORD:-}" ]; then
   log_error "Missing required PG* variables for migration"
+  exit 1
+fi
+
+if [ -z "${API_KEY:-}" ]; then
+  log_error "Missing API_KEY in $ENV_FILE. Run WebEditor env setup before migrations."
   exit 1
 fi
 
@@ -263,6 +269,28 @@ apply_sql_file_with_admin_vars() {
   mark_migration_applied "$fname"
 }
 
+ensure_webeditor_api_key() {
+  if [ "${DRY_RUN:-0}" = "1" ]; then
+    log_info "Would seed WebEditor API key"
+    return 0
+  fi
+
+  log_info "Ensuring WebEditor API key is seeded"
+  PGPASSWORD="${PGPASSWORD:-}" psql -v ON_ERROR_STOP=1 \
+    -v webeditor_api_key="${API_KEY:-}" \
+    "$PG_CONN" 2>&1 <<'SQL' | tee -a "$LOG_FILE"
+INSERT INTO public.nt_api_keys (api_key)
+SELECT :'webeditor_api_key'
+WHERE NOT EXISTS (
+  SELECT 1 FROM public.nt_api_keys WHERE api_key = :'webeditor_api_key'
+);
+SQL
+  if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+    log_error "Failed to seed WebEditor API key. See $LOG_FILE"
+    exit 1
+  fi
+}
+
 mapfile -t files < <(find "$DB_DIR" -maxdepth 1 -type f -name "[0-9][0-9][0-9]_*.sql" | sort)
 if [ "${#files[@]}" -eq 0 ]; then
   log_warn "No numbered SQL migration files found in $DB_DIR"
@@ -271,6 +299,8 @@ else
     apply_sql_file "$file"
   done
 fi
+
+ensure_webeditor_api_key
 
 special_files=(
   "$DB_DIR/create_user.sql"

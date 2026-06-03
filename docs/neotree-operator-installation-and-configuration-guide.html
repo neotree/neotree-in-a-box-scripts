@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Neotree In-A-Box Operator Installation and Configuration Guide</title>
+  <style>
+    @page {
+      margin: 1in;
+    }
+
+    body {
+      color: #111;
+      font-family: "Times New Roman", Times, serif;
+      font-size: 12pt;
+      line-height: 1.5;
+      margin: 1in auto;
+      max-width: 7.25in;
+      text-align: justify;
+    }
+
+    h1,
+    h2,
+    h3 {
+      font-size: 12pt;
+      line-height: 1.5;
+      margin: 18pt 0 6pt;
+      text-align: left;
+    }
+
+    h1 {
+      text-align: center;
+      text-transform: uppercase;
+    }
+
+    p {
+      margin: 0 0 9pt;
+    }
+
+    ul,
+    ol {
+      margin-bottom: 9pt;
+      margin-top: 0;
+      padding-left: 0.35in;
+    }
+
+    li {
+      margin-bottom: 4pt;
+    }
+
+    table {
+      border-collapse: collapse;
+      margin: 9pt 0;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #333;
+      padding: 5pt;
+      vertical-align: top;
+    }
+
+    th {
+      font-weight: bold;
+      text-align: left;
+    }
+
+    .command,
+    .example {
+      border: 1px solid #777;
+      margin: 9pt 0;
+      padding: 6pt;
+      text-align: left;
+      white-space: pre-wrap;
+    }
+
+    .meta {
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>Neotree In-A-Box Operator Installation and Configuration Guide</h1>
+
+  <p class="meta"><strong>Audience:</strong> Ministry teams, facility implementation teams, programme managers, and approved system operators.</p>
+  <p class="meta"><strong>Purpose:</strong> To provide clear installation, configuration, support, and basic troubleshooting guidance without requiring Neotree engineers to be present.</p>
+
+  <h2>1. Document Scope</h2>
+  <p>This guide explains how an approved operator can install and configure the Neotree In-A-Box services on an Ubuntu 24 server. It is written for operational use and avoids engineering detail where possible. The guide assumes that the Ministry or implementing partner has already approved the server, the intended health facility, and the responsible staff members.</p>
+  <p>The installation includes the Neotree API, WebEditor, Data Pipeline, and Metabase reporting service. These services work together to support local deployment, form management, data processing, and reporting.</p>
+
+  <h2>2. Roles and Responsibilities</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Role</th>
+        <th>Responsibility</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Ministry or programme owner</td>
+        <td>Approves the deployment, confirms the facility details, confirms reporting requirements, and approves access to sensitive information.</td>
+      </tr>
+      <tr>
+        <td>System operator</td>
+        <td>Runs the installation, records configuration choices, checks that the services start, and reports issues using the troubleshooting section.</td>
+      </tr>
+      <tr>
+        <td>Facility representative</td>
+        <td>Confirms facility name, facility code, country, and the agreed admission and discharge workflows.</td>
+      </tr>
+      <tr>
+        <td>Database or server administrator</td>
+        <td>Provides approved server access, backups, network access, and secure handling of passwords and certificates.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>3. Before Installation</h2>
+  <p>Complete the following checks before starting. These checks reduce interruptions and make the installation easier to complete in one session.</p>
+  <ol>
+    <li>Confirm that the server is running Ubuntu 24 and that the operator has approved sudo access.</li>
+    <li>Confirm that the server has a stable internet connection during installation.</li>
+    <li>Confirm that the server has enough storage for the application, reporting files, and logs.</li>
+    <li>Confirm the country for the deployment. The current default is Malawi.</li>
+    <li>Confirm the health facility code and name. The default test facility is code TH and name Test Hospital.</li>
+    <li>Confirm whether the services will use a domain name, a public IP address, or local-only access.</li>
+    <li>Confirm whether HTTPS certificates are already available. If certificates are not available, the advanced web setup can be skipped and completed later.</li>
+    <li>Confirm who will hold the WebEditor administrator account and password.</li>
+  </ol>
+
+  <h2>4. Important Safety Notes</h2>
+  <ul>
+    <li>Do not share passwords, API keys, certificate keys, or database credentials in email or public chat channels.</li>
+    <li>Do not store patient-identifying information in this installation guide.</li>
+    <li>Use only Ministry-approved servers and Ministry-approved staff accounts.</li>
+    <li>Keep a written record of the installation date, server name, responsible operator, and selected facility details.</li>
+    <li>Do not run the cleanup script unless there is written approval, because it removes installed services and application files.</li>
+  </ul>
+
+  <h2>5. Installation Guide</h2>
+
+  <h3>5.1 Log in to the Server</h3>
+  <p>Log in to the approved Ubuntu 24 server using the account provided by the server administrator. The account must be allowed to run administrative commands using sudo.</p>
+
+  <h3>5.2 Place the Deployment Scripts on the Server</h3>
+  <p>Place the Neotree In-A-Box deployment folder on the server. If the folder has already been copied, move into that folder before continuing.</p>
+  <div class="command">cd neotree-in-a-box-scripts</div>
+
+  <h3>5.3 Allow the Deployment Scripts to Run</h3>
+  <p>Run the following command once. It allows the deployment scripts to start the required installation steps.</p>
+  <div class="command">chmod -R +x deploy</div>
+
+  <h3>5.4 Start the Full Installation</h3>
+  <p>Run the full installation command below. The installer will set up the Neotree API, WebEditor, Data Pipeline, and Metabase in order.</p>
+  <div class="command">bash deploy/deploy.sh</div>
+  <p>When prompted, choose the recommended express installation unless the Ministry or programme team has requested a custom setup. Express installation uses the standard defaults and avoids unnecessary questions.</p>
+
+  <h3>5.5 Respond to Prompts</h3>
+  <p>The installer may ask whether to install missing packages. Choose yes when the package is part of the installation requirement. The installer may also ask whether to continue with advanced setup for domain names, email, web server configuration, and certificates. If these details are not ready, it is acceptable to skip advanced setup and complete it later.</p>
+
+  <h3>5.6 Confirm Installation Completion</h3>
+  <p>At the end of a successful installation, the deployer records progress and prints a success message. Logs are saved inside the deployment folder under each service. These logs should be kept for support and audit purposes.</p>
+  <div class="example">deploy/node-api/logs/
+deploy/webeditor/logs/
+deploy/datapipeline/logs/
+deploy/metabase/logs/</div>
+
+  <h2>6. Configuration Guide</h2>
+
+  <h3>6.1 Main Application Location</h3>
+  <p>By default, the installed applications are placed under the operator home directory in a folder named neotree. The usual location is shown below.</p>
+  <div class="example">/home/ubuntu/neotree</div>
+  <p>If a different location is required, the operator may set the APP_ROOT value before running the installer. This should only be done when the Ministry or server administrator has agreed the location.</p>
+
+  <h3>6.2 Shared Database Credentials</h3>
+  <p>The installer creates shared database credentials for the Neotree services. These credentials are stored in the local application environment file. This file must be protected and must not be shared publicly.</p>
+  <div class="example">~/neotree/.env</div>
+
+  <h3>6.3 Data Pipeline Database Configuration</h3>
+  <p>The Data Pipeline creates a local database configuration file. The file uses the Node API database details and the shared password. It also records the country, pipeline working directory, WebEditor address, and WebEditor API key.</p>
+  <div class="example">~/neotree/datapipeline/conf/local/database.ini</div>
+  <p>The expected structure is shown below. Values may differ depending on the approved deployment.</p>
+  <div class="example">[postgresql_dev]
+host = localhost
+database= nodeapi_prod
+user= neotree_app
+password= nodeapi-database-password
+country = malawi
+cron_dir = /home/ubuntu/neotree/datapipeline/
+data_fix = false
+webeditor = http://localhost:3001
+webeditor_api_key = protected-key-value</div>
+
+  <h3>6.4 Facility Configuration</h3>
+  <p>The Data Pipeline also creates a facility configuration file. The default test facility is Test Hospital with code TH. The country is taken from the selected deployment country. Admission and discharge script IDs are taken from seeded WebEditor data when available.</p>
+  <div class="example">~/neotree/datapipeline/conf/local/hospitals.ini</div>
+  <p>The expected structure is shown below.</p>
+  <div class="example">[TH]
+name= Test Hospital
+country= malawi
+admissions = admission-script-id
+discharges = discharge-script-id</div>
+  <p>For a real facility, replace the test facility details only with approved values. For example, Kamuzu Central Hospital may use facility code KCH and name Kamuzu Central Hospital. Changes should be recorded in the deployment record.</p>
+
+  <h3>6.5 Data Pipeline Schedule</h3>
+  <p>After the Data Pipeline is installed successfully, the installer creates a scheduled task that runs the pipeline every 30 minutes. The task uses the local pipeline working directory and the pipeline virtual environment.</p>
+  <div class="example">*/30 * * * * cd /home/ubuntu/neotree/datapipeline && env/bin/python -m kedro run --env=dev</div>
+  <p>The installer manages this scheduled task automatically. Operators should not add duplicate scheduled tasks for the same pipeline.</p>
+
+  <h3>6.6 WebEditor Configuration</h3>
+  <p>The WebEditor is used to manage forms and seeded data. During setup, an API key is generated and stored. The same key is made available to the Data Pipeline so it can request WebEditor data. Keep this key private.</p>
+
+  <h3>6.7 Metabase Configuration</h3>
+  <p>Metabase is the reporting service. It uses its own application database and runs as a system service. On Ubuntu 24, Metabase requires Java 21 or newer. The deployer downloads a valid Metabase application file and checks that the file is usable before starting the service.</p>
+
+  <h3>6.8 Domain Names, Web Access, and Certificates</h3>
+  <p>Advanced setup can configure web access through nginx and optional HTTPS certificates. If a domain is not ready, the setup can use the server public IP address. If certificates are not ready, plain HTTP can be used temporarily where approved by the Ministry or programme owner.</p>
+
+  <h2>7. What We Support and Do Not Support</h2>
+
+  <h3>7.1 Supported</h3>
+  <ul>
+    <li>Installation on an approved Ubuntu 24 server.</li>
+    <li>Deployment of the Neotree API, WebEditor, Data Pipeline, and Metabase using the provided scripts.</li>
+    <li>Standard local PostgreSQL setup using the shared Neotree application user.</li>
+    <li>Default Malawi-oriented configuration, including default test facility values where no real facility values have been approved.</li>
+    <li>Automatic creation of Data Pipeline configuration files.</li>
+    <li>Automatic scheduling of the Data Pipeline every 30 minutes.</li>
+    <li>Optional nginx and TLS setup when domain and certificate details are available.</li>
+    <li>Basic reruns of the installer when a previous step was interrupted.</li>
+  </ul>
+
+  <h3>7.2 Not Supported Without Additional Approval</h3>
+  <ul>
+    <li>Installation on non-Ubuntu systems or unmanaged personal computers.</li>
+    <li>Use of unapproved servers, unapproved domains, or unapproved certificates.</li>
+    <li>Manual changes to database tables unless directed by an approved technical support process.</li>
+    <li>Sharing passwords, API keys, certificates, or patient data outside approved channels.</li>
+    <li>Custom clinical form changes that have not been approved by the clinical and Ministry stakeholders.</li>
+    <li>Changing the Data Pipeline schedule without agreement from the reporting and operations teams.</li>
+    <li>Using the cleanup script on a production server without written approval.</li>
+  </ul>
+
+  <h2>8. Troubleshooting Basics</h2>
+
+  <h3>8.1 General First Checks</h3>
+  <ol>
+    <li>Check that the server is powered on and reachable.</li>
+    <li>Check that the internet connection is working if the issue happened during installation.</li>
+    <li>Check the latest deployment log for the affected service.</li>
+    <li>Rerun the same deploy command if the installation stopped because of a temporary network issue.</li>
+    <li>Record the time of the problem, the command that was running, and the message shown on screen.</li>
+  </ol>
+
+  <h3>8.2 Where to Find Logs</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Service</th>
+        <th>Log Location or Command</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Node API</td>
+        <td>deploy/node-api/logs/</td>
+      </tr>
+      <tr>
+        <td>WebEditor</td>
+        <td>deploy/webeditor/logs/</td>
+      </tr>
+      <tr>
+        <td>Data Pipeline</td>
+        <td>deploy/datapipeline/logs/</td>
+      </tr>
+      <tr>
+        <td>Metabase</td>
+        <td>deploy/metabase/logs/ and sudo journalctl -u metabase -n 50</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>8.3 Common Installation Issues</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Issue</th>
+        <th>Likely Cause</th>
+        <th>Basic Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Installer says a required package is missing.</td>
+        <td>The server does not yet have the required tool.</td>
+        <td>Choose yes when asked to install the package, or ask the server administrator to install it.</td>
+      </tr>
+      <tr>
+        <td>Installer stops during download.</td>
+        <td>The internet connection may be interrupted.</td>
+        <td>Check connectivity and rerun the same command.</td>
+      </tr>
+      <tr>
+        <td>Metabase reports an invalid or corrupt jar file.</td>
+        <td>The downloaded file may be incomplete or may be an error page.</td>
+        <td>Rerun the Metabase deployer. The current deployer checks the file and downloads it again if invalid.</td>
+      </tr>
+      <tr>
+        <td>Metabase does not start on Ubuntu 24.</td>
+        <td>Java may be older than required.</td>
+        <td>Confirm that Java 21 or newer is installed, then rerun the Metabase deployer.</td>
+      </tr>
+      <tr>
+        <td>Data Pipeline does not run automatically.</td>
+        <td>The scheduled task may not be installed or the virtual environment may be missing.</td>
+        <td>Rerun the Data Pipeline deployer and confirm that the cron setup step completes.</td>
+      </tr>
+      <tr>
+        <td>Web page does not open using the domain.</td>
+        <td>Domain records, nginx setup, or certificates may not be ready.</td>
+        <td>Try the server IP address if approved, then rerun the relevant nginx setup phase after domain details are confirmed.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>8.4 Safe Rerun Guidance</h3>
+  <p>The installer records progress. If a step fails, rerun the same installation command after fixing the immediate issue. The installer should continue from the next unfinished step. If a full rerun is required, use FORCE_DEPLOY=1 only when approved by the responsible operator.</p>
+  <div class="command">FORCE_DEPLOY=1 bash deploy/deploy.sh</div>
+
+  <h3>8.5 When to Escalate</h3>
+  <p>Escalate to the approved technical support contact if any of the following occur:</p>
+  <ul>
+    <li>The server cannot be reached.</li>
+    <li>The database password is lost or exposed.</li>
+    <li>A production service is down and cannot be restarted.</li>
+    <li>Patient data may have been exposed or copied to an unapproved location.</li>
+    <li>The installer fails repeatedly after the same step.</li>
+    <li>The facility requires a change to clinical forms or reporting logic.</li>
+  </ul>
+
+  <h2>9. Installation Record</h2>
+  <p>Complete this section after installation. Keep the completed record in the approved programme documentation location.</p>
+  <table>
+    <tbody>
+      <tr>
+        <td>Installation date</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>Server name or IP address</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>Country</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>Facility code and name</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>Operator name</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>WebEditor administrator contact</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>Domain or access address</td>
+        <td></td>
+      </tr>
+      <tr>
+        <td>Advanced setup completed</td>
+        <td>Yes / No / Not applicable</td>
+      </tr>
+      <tr>
+        <td>Notes and follow-up actions</td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>10. Final Operator Checklist</h2>
+  <ol>
+    <li>The full installer completed or each required service installer completed.</li>
+    <li>The WebEditor administrator details are recorded in the approved secure location.</li>
+    <li>The Data Pipeline configuration files exist.</li>
+    <li>The Data Pipeline scheduled task is installed.</li>
+    <li>Metabase starts successfully.</li>
+    <li>Any domain, IP address, and certificate choices are recorded.</li>
+    <li>Installation logs are available for review.</li>
+    <li>No passwords, API keys, or patient data have been copied into public documents.</li>
+  </ol>
+</body>
+</html>

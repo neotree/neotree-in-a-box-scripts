@@ -198,7 +198,7 @@ auto_config_db_values() {
   HOSTNAME="${HOSTNAME:-production}"
   PORT="${PORT:-$DEFAULT_PORT}"
   SERVER_PORT="$PORT"
-  API_KEY="${API_KEY:-}"
+  API_KEY="${API_KEY:-$(generate_secret)}"
   DEBUG="${DEBUG:-false}"
   DB_LOGGING="${DB_LOGGING:-false}"
   PGDATABASE="$DEFAULT_PGDATABASE"

@@ -27,7 +27,8 @@ fi
 progress_prepare_component_run "$COMPONENT_NAME"
 
 if progress_is_component_complete "$COMPONENT_NAME"; then
-  log_info "Skipping $COMPONENT_NAME deployment; already completed in a previous run"
+  run_tracked_phase "$COMPONENT_NAME" "05_cron_setup" "$BASE_DIR/phases/05_cron_setup.sh" "Cron setup"
+  log_info "Skipping remaining $COMPONENT_NAME deployment; already completed in a previous run"
   exit 0
 fi
 
@@ -35,6 +36,7 @@ run_tracked_phase "$COMPONENT_NAME" "01_preflight" "$BASE_DIR/phases/01_prefligh
 run_tracked_phase "$COMPONENT_NAME" "02_clone_repo" "$BASE_DIR/phases/02_clone_repo.sh" "Clone or update repo"
 run_tracked_phase "$COMPONENT_NAME" "03_config_setup" "$BASE_DIR/phases/03_config_setup.sh" "Configuration setup"
 run_tracked_phase "$COMPONENT_NAME" "04_python_setup" "$BASE_DIR/phases/04_python_setup.sh" "Python environment setup"
+run_tracked_phase "$COMPONENT_NAME" "05_cron_setup" "$BASE_DIR/phases/05_cron_setup.sh" "Cron setup"
 progress_mark_component_complete "$COMPONENT_NAME"
 
 log_success "Neotree datapipeline deployment completed successfully"

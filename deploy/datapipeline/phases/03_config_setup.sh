@@ -46,13 +46,31 @@ backup_if_exists() {
   fi
 }
 
+ini_get() {
+  local file="$1" key="$2"
+  [ -f "$file" ] || return 1
+  awk -F '=' -v k="$key" '
+    $1 ~ "^[[:space:]]*" k "[[:space:]]*$" {
+      value=$2
+      sub(/^[[:space:]]*/, "", value)
+      sub(/[[:space:]]*$/, "", value)
+      print value
+    }
+  ' "$file" | tail -n 1
+}
+
 default_host="localhost"
-default_db="datapipeline"
+default_db="${NODE_API_DB_NAME:-node_api}"
 default_user="neotree_app"
 default_password=""
-default_country="zimbabwe"
-default_webeditor=""
+default_country="${DATAPIPELINE_COUNTRY:-malawi}"
+default_cron_dir="$APP_DIR/"
+default_webeditor="http://localhost:3001"
 default_webeditor_key=""
+default_hospital_code="${DATAPIPELINE_HOSPITAL_CODE:-TH}"
+default_hospital_name="${DATAPIPELINE_HOSPITAL_NAME:-Test Hospital}"
+default_admission_script_id="${DATAPIPELINE_ADMISSION_SCRIPT_ID:-e0f80463-276f-4b3d-b58b-6561eac49d66}"
+default_discharge_script_id="${DATAPIPELINE_DISCHARGE_SCRIPT_ID:-1fca161e-825b-41ac-bada-4b6209ebb8fe}"
 
 generate_secret() {
   if command -v openssl >/dev/null 2>&1; then
@@ -113,6 +131,84 @@ GRANT CONNECT, TEMP ON DATABASE "$esc_db" TO "$esc_user";
 SQL
 }
 
+query_webeditor_script_id() {
+  local script_type="$1"
+  local pgdatabase pguser pghost pgport pgpassword pgsslmode order_sql
+
+  [ -f "$WEBEDITOR_ENV_FILE" ] || return 1
+  command -v psql >/dev/null 2>&1 || return 1
+
+  pgdatabase="$(dotenv_get "$WEBEDITOR_ENV_FILE" PGDATABASE || true)"
+  pguser="$(dotenv_get "$WEBEDITOR_ENV_FILE" PGUSER || true)"
+  pghost="$(dotenv_get "$WEBEDITOR_ENV_FILE" PGHOST || true)"
+  pgport="$(dotenv_get "$WEBEDITOR_ENV_FILE" PGPORT || true)"
+  pgpassword="$(dotenv_get "$WEBEDITOR_ENV_FILE" PGPASSWORD || true)"
+  pgsslmode="$(dotenv_get "$WEBEDITOR_ENV_FILE" PGSSLMODE || true)"
+
+  [ -n "$pgdatabase" ] && [ -n "$pguser" ] && [ -n "$pghost" ] && [ -n "$pgport" ] && [ -n "$pgpassword" ] || return 1
+
+  case "$script_type" in
+    admission)
+      order_sql="CASE
+        WHEN old_script_id = '-KO1TK4zMvLhxTw6eKia' THEN 0
+        WHEN title = 'Neotree Admission' THEN 1
+        WHEN title ILIKE '%malawi%' THEN 2
+        ELSE 9
+      END"
+      ;;
+    discharge)
+      order_sql="CASE
+        WHEN old_script_id = '-KYDiO2BTM4kSGZDVXAO' THEN 0
+        WHEN title = 'NeoDischarge' THEN 1
+        WHEN title ILIKE '%malawi%' THEN 2
+        ELSE 9
+      END"
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  PGPASSWORD="$pgpassword" psql -tAc "
+    SELECT script_id::text
+    FROM public.nt_scripts
+    WHERE type = '$script_type'::public.script_type
+      AND deleted_at IS NULL
+    ORDER BY $order_sql, id
+    LIMIT 1;" \
+    "host=$pghost port=$pgport dbname=$pgdatabase user=$pguser sslmode=${pgsslmode:-prefer}" 2>/dev/null | tr -d '[:space:]'
+}
+
+write_hospitals_ini() {
+  local admission_script_id discharge_script_id
+
+  admission_script_id="${DATAPIPELINE_ADMISSION_SCRIPT_ID:-}"
+  discharge_script_id="${DATAPIPELINE_DISCHARGE_SCRIPT_ID:-}"
+
+  if [ -z "$admission_script_id" ]; then
+    admission_script_id="$(query_webeditor_script_id admission || true)"
+  fi
+  if [ -z "$discharge_script_id" ]; then
+    discharge_script_id="$(query_webeditor_script_id discharge || true)"
+  fi
+
+  admission_script_id="${admission_script_id:-$default_admission_script_id}"
+  discharge_script_id="${discharge_script_id:-$default_discharge_script_id}"
+
+  cat > "$HOSP_FILE" <<EOF
+[$default_hospital_code]
+name= $default_hospital_name
+country= $DB_COUNTRY
+admissions = $admission_script_id
+discharges = $discharge_script_id
+EOF
+}
+
+if [ -f "$NODE_ENV_FILE" ]; then
+  node_pg_db="$(dotenv_get "$NODE_ENV_FILE" PGDATABASE || true)"
+  [ -n "$node_pg_db" ] && default_db="$node_pg_db"
+fi
+
 if ! load_shared_pg_env; then
   if [ -f "$NODE_ENV_FILE" ]; then
     log_info "Loading defaults from $NODE_ENV_FILE"
@@ -148,8 +244,10 @@ if [ -f "$DB_FILE" ]; then
   else
     log_info "Keeping existing database.ini"
     if [ ! -f "$HOSP_FILE" ]; then
-      log_info "Creating hospitals.ini placeholder"
-      echo "# Add hospital configuration here" > "$HOSP_FILE"
+      DB_COUNTRY="$(ini_get "$DB_FILE" country || true)"
+      DB_COUNTRY="${DB_COUNTRY:-$default_country}"
+      log_info "Creating hospitals.ini"
+      write_hospitals_ini
     fi
     exit 0
   fi
@@ -174,30 +272,11 @@ while true; do
       ;;
   esac
 
-  DATA_FIX="$(prompt "Enable data_fix (True/False)" "True")"
-
-  CONNECT_WEBEDITOR=0
-  if confirm_with_back "Configure webeditor connection now? Press b to go back to the previous step."; then
-    CONNECT_WEBEDITOR=1
-    if [ -n "$default_webeditor" ]; then
-      WEBEDITOR_URL="$default_webeditor"
-      log_info "Using WebEditor URL from previous setup: $WEBEDITOR_URL"
-    else
-      WEBEDITOR_URL="$(prompt "Webeditor URL" "$default_webeditor")"
-    fi
-    WEBEDITOR_API_KEY="$default_webeditor_key"
-    break
-  else
-    case $? in
-      2)
-        log_info "Returning to database settings"
-        continue
-        ;;
-      *)
-        break
-        ;;
-    esac
-  fi
+  DATA_FIX="$(prompt "Enable data_fix (true/false)" "false")"
+  CRON_DIR="${DATAPIPELINE_CRON_DIR:-$default_cron_dir}"
+  WEBEDITOR_URL="${WEBEDITOR_URL:-$default_webeditor}"
+  WEBEDITOR_API_KEY="${WEBEDITOR_API_KEY:-$default_webeditor_key}"
+  break
 done
 
 ensure_datapipeline_database || true
@@ -206,30 +285,19 @@ backup_if_exists "$DB_FILE"
 cat > "$DB_FILE" <<EOF
 [postgresql_dev]
 host = $DB_HOST
-database = $DB_NAME
-user = $DB_USER
-password = $DB_PASSWORD
+database= $DB_NAME
+user= $DB_USER
+password= $DB_PASSWORD
 country = $DB_COUNTRY
+cron_dir = $CRON_DIR
 data_fix = $DATA_FIX
-EOF
-
-if [ "$CONNECT_WEBEDITOR" -eq 1 ]; then
-cat >> "$DB_FILE" <<EOF
-
-[webeditor]
 webeditor = $WEBEDITOR_URL
 webeditor_api_key = $WEBEDITOR_API_KEY
 EOF
-fi
 
 if [ ! -f "$HOSP_FILE" ]; then
-  log_info "Creating hospitals.ini placeholder"
-  cat > "$HOSP_FILE" <<EOF
-# hospitals.ini
-# Add hospital-level overrides in ini format, e.g.
-# [default]
-# code = HOSP001
-EOF
+  log_info "Creating hospitals.ini"
+  write_hospitals_ini
 fi
 
 log_success "database.ini and hospitals.ini ready under $CONF_DIR"

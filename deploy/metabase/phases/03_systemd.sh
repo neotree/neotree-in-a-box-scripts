@@ -13,10 +13,10 @@ INSTALL_DIR="${INSTALL_DIR:-/opt/metabase}"
 MB_DATABASE="${MB_DATABASE:-metabase}"
 
 if ! load_shared_pg_env; then
-  dotenv_get "$NODE_ENV_FILE" PGHOST || PGHOST=""
-  dotenv_get "$NODE_ENV_FILE" PGPORT || PGPORT=""
-  dotenv_get "$NODE_ENV_FILE" PGUSER || PGUSER=""
-  dotenv_get "$NODE_ENV_FILE" PGPASSWORD || PGPASSWORD=""
+  PGHOST="$(dotenv_get "$NODE_ENV_FILE" PGHOST || true)"
+  PGPORT="$(dotenv_get "$NODE_ENV_FILE" PGPORT || true)"
+  PGUSER="$(dotenv_get "$NODE_ENV_FILE" PGUSER || true)"
+  PGPASSWORD="$(dotenv_get "$NODE_ENV_FILE" PGPASSWORD || true)"
 fi
 
 if [ -z "$PGHOST" ] || [ -z "$PGPORT" ] || [ -z "$PGUSER" ] || [ -z "$PGPASSWORD" ]; then
@@ -43,7 +43,7 @@ Environment=MB_DB_PORT=${PGPORT}
 Environment=MB_DB_USER=${PGUSER}
 Environment=MB_DB_PASS=${PGPASSWORD}
 Environment=MB_DB_HOST=${PGHOST}
-ExecStart=/usr/bin/java -Xmx${MB_MEMORY} -jar ${INSTALL_DIR}/metabase.jar
+ExecStart=/usr/bin/java --add-opens java.base/java.nio=ALL-UNNAMED -Xmx${MB_MEMORY} -jar ${INSTALL_DIR}/metabase.jar
 Restart=always
 RestartSec=5
 SuccessExitStatus=143

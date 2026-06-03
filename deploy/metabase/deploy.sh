@@ -19,17 +19,26 @@ log_info "Deploy log: $RUN_LOG"
 # Shared defaults (can be overridden via env)
 export MB_PORT="${MB_PORT:-6000}"
 export MB_MEMORY="${MB_MEMORY:-1G}"
-export MB_VERSION="${MB_VERSION:-1.57.0}"
+export MB_VERSION="${MB_VERSION:-latest}"
 export SERVICE_NAME="${MB_SERVICE_NAME:-metabase}"
 export INSTALL_DIR="${MB_INSTALL_DIR:-/opt/metabase}"
-export JAVA_PACKAGE="${MB_JAVA_PACKAGE:-openjdk-17-jre-headless}"
+export JAVA_PACKAGE="${MB_JAVA_PACKAGE:-openjdk-21-jre-headless}"
 export APP_ROOT="${APP_ROOT:-$HOME/neotree}"
 export NODE_ENV_FILE="${NODE_ENV_FILE:-$APP_ROOT/node-api/.env}"
 
 COMPONENT_NAME="metabase"
 
-if [ ! -f "$INSTALL_DIR/metabase.jar" ] && progress_has_component_state "$COMPONENT_NAME"; then
-  log_warn "Saved progress found for $COMPONENT_NAME, but Metabase is missing at $INSTALL_DIR; clearing saved progress"
+metabase_jar_is_valid() {
+  local jar="$1" size magic
+  [ -f "$jar" ] || return 1
+  size="$(stat -c '%s' "$jar" 2>/dev/null || echo 0)"
+  [ "$size" -gt 50000000 ] || return 1
+  magic="$(dd if="$jar" bs=4 count=1 2>/dev/null | od -An -tx1 | tr -d ' \n')"
+  [ "$magic" = "504b0304" ]
+}
+
+if progress_has_component_state "$COMPONENT_NAME" && ! metabase_jar_is_valid "$INSTALL_DIR/metabase.jar"; then
+  log_warn "Saved progress found for $COMPONENT_NAME, but $INSTALL_DIR/metabase.jar is missing or invalid; clearing saved progress"
   progress_clear_component "$COMPONENT_NAME"
 fi
 
