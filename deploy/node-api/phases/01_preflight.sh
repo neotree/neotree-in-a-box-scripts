@@ -11,8 +11,7 @@ df -h / | awk 'NR==2 {print $4}' | sed 's/G//' | awk '{if ($1 < 10) exit 1}' || 
 }
 
 ensure_cmd git git
-ensure_cmd node nodejs
-ensure_cmd npm npm
+ensure_node_major 20
 
 preflight_step=1
 while [ "$preflight_step" -le 4 ]; do

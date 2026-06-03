@@ -11,6 +11,8 @@ MB_VERSION="${MB_VERSION:-1.57.0}"
 SERVICE_NAME="${SERVICE_NAME:-metabase}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/metabase}"
 MB_DATABASE="${MB_DATABASE:-metabase}"
+MB_STARTUP_ATTEMPTS="${MB_STARTUP_ATTEMPTS:-120}"
+MB_STARTUP_SLEEP_SECONDS="${MB_STARTUP_SLEEP_SECONDS:-5}"
 
 if ! load_shared_pg_env; then
   PGHOST="$(dotenv_get "$NODE_ENV_FILE" PGHOST || true)"
@@ -43,6 +45,8 @@ Environment=MB_DB_PORT=${PGPORT}
 Environment=MB_DB_USER=${PGUSER}
 Environment=MB_DB_PASS=${PGPASSWORD}
 Environment=MB_DB_HOST=${PGHOST}
+Environment=MB_AI_FEATURES_ENABLED=false
+Environment=MB_ANON_TRACKING_ENABLED=false
 ExecStart=/usr/bin/java --add-opens java.base/java.nio=ALL-UNNAMED -Xmx${MB_MEMORY} -jar ${INSTALL_DIR}/metabase.jar
 Restart=always
 RestartSec=5
@@ -64,13 +68,18 @@ metabase_available() {
 }
 
 log_info "Waiting for Metabase health check on port $MB_PORT"
-for i in $(seq 1 20); do
+for i in $(seq 1 "$MB_STARTUP_ATTEMPTS"); do
   if metabase_available; then
     log_success "Metabase is up at http://$(hostname -I | awk '{print $1}'):${MB_PORT}"
     exit 0
   fi
-  sleep 3
+  if ! sudo systemctl is-active --quiet "$SERVICE_NAME"; then
+    log_error "Metabase service stopped while waiting for health check. Check logs with: sudo journalctl -u ${SERVICE_NAME} -n 100"
+    exit 1
+  fi
+  log_info "Metabase is still starting ($i/$MB_STARTUP_ATTEMPTS)"
+  sleep "$MB_STARTUP_SLEEP_SECONDS"
 done
 
-log_error "Metabase did not become healthy. Check logs with: sudo journalctl -u ${SERVICE_NAME} -f"
+log_error "Metabase did not become healthy after $((MB_STARTUP_ATTEMPTS * MB_STARTUP_SLEEP_SECONDS)) seconds. Check logs with: sudo journalctl -u ${SERVICE_NAME} -f"
 exit 1

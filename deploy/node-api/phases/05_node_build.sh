@@ -1,5 +1,6 @@
 set -euo pipefail
 source "$(dirname "$0")/../../lib/log.sh"
+source "$(dirname "$0")/../../lib/checks.sh"
 APP_DIR="${APP_DIR:-$HOME/neotree/node-api}"
 cd "$APP_DIR"
 
@@ -8,6 +9,8 @@ if [ ! -f .env ]; then
   log_warn ".env created from example. Please configure and re-run deploy."
   exit 1
 fi
+
+ensure_node_major 20
 
 if [ -f package-lock.json ]; then
   npm ci

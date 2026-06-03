@@ -13,7 +13,7 @@ The stack shares one PostgreSQL role, `neotree_app`, whose credentials live in t
 ## Prerequisites
 - Ubuntu/Debian with sudo access
 - git, curl, bash
-- Node.js and npm
+- Node.js 20 or newer and npm
 - PostgreSQL server and client (`psql`)
 - Python 3.8 with `python3.8-venv` (datapipeline is pinned to 3.8)
 

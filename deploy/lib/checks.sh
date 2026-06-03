@@ -72,6 +72,56 @@ ensure_cmd() {
   fi
 }
 
+node_major_version() {
+  local version
+  version="$(node --version 2>/dev/null || true)"
+  version="${version#v}"
+  printf '%s\n' "${version%%.*}"
+}
+
+install_nodesource_node() {
+  local major="$1"
+  local setup_script="/tmp/nodesource_setup_${major}.x"
+
+  ensure_cmd curl curl
+  log_info "Installing Node.js ${major}.x from NodeSource"
+  curl -fsSL "https://deb.nodesource.com/setup_${major}.x" -o "$setup_script"
+  sudo bash "$setup_script"
+  sudo apt install -y nodejs
+  rm -f "$setup_script"
+}
+
+ensure_node_major() {
+  local required_major="${1:-20}"
+  local current_major
+
+  if ! command -v node >/dev/null 2>&1; then
+    log_warn "node not found"
+    confirm_or_exit "Install Node.js ${required_major}.x?"
+    install_nodesource_node "$required_major"
+  fi
+
+  current_major="$(node_major_version)"
+  if [ -z "$current_major" ] || [ "$current_major" -lt "$required_major" ]; then
+    log_warn "Node.js ${required_major}.x or newer is required; current version is $(node --version 2>/dev/null || echo unknown)"
+    confirm_or_exit "Upgrade Node.js to ${required_major}.x?"
+    install_nodesource_node "$required_major"
+    current_major="$(node_major_version)"
+  fi
+
+  if [ -z "$current_major" ] || [ "$current_major" -lt "$required_major" ]; then
+    log_error "Node.js ${required_major}.x or newer is required. Current version is $(node --version 2>/dev/null || echo unknown)."
+    exit 1
+  fi
+
+  if ! command -v npm >/dev/null 2>&1; then
+    log_error "npm was not found after installing Node.js. Check the Node.js installation."
+    exit 1
+  fi
+
+  log_info "Node.js $(node --version) and npm $(npm --version) are ready"
+}
+
 python_header_available() {
   local python_bin="${1:-python3.8}"
   "$python_bin" - <<'PY' >/dev/null 2>&1

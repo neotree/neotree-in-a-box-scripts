@@ -1,5 +1,6 @@
 set -euo pipefail
 source "$(dirname "$0")/../../lib/log.sh"
+source "$(dirname "$0")/../../lib/checks.sh"
 APP_DIR="${APP_DIR:-$HOME/neotree/neotree-editor}"
 cd "$APP_DIR"
 
@@ -10,6 +11,8 @@ if [ ! -f .env ]; then
 fi
 
 NPM_INSTALL_FLAGS="${NPM_INSTALL_FLAGS:---legacy-peer-deps}"
+
+ensure_node_major 20
 
 if [ -n "$NPM_INSTALL_FLAGS" ]; then
   log_info "Installing node dependencies with npm flags: $NPM_INSTALL_FLAGS"
