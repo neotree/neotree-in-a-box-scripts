@@ -85,6 +85,31 @@
   <p class="meta"><strong>Audience:</strong> Ministry teams, facility implementation teams, programme managers, and approved system operators.</p>
   <p class="meta"><strong>Purpose:</strong> To provide clear installation, configuration, support, and basic troubleshooting guidance without requiring Neotree engineers to be present.</p>
 
+  <h2>Required AWS Setup Before Public Testing</h2>
+  <p>If this installation is running on AWS, the person who creates or manages the EC2 server must open the required inbound ports in the EC2 Security Group before non-technical operators test the public URLs. This is an AWS access task and normally cannot be completed by an operator who only has login access to the server.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Service</th>
+        <th>Required inbound port</th>
+        <th>Public test address</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>WebEditor</td>
+        <td>TCP 80</td>
+        <td>http://SERVER_PUBLIC_IP</td>
+      </tr>
+      <tr>
+        <td>Metabase</td>
+        <td>TCP 8080</td>
+        <td>http://SERVER_PUBLIC_IP:8080</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>The server setup owner should complete this in the Amazon Console before handing the server to operators for testing. The deployment scripts can configure nginx on the server, but they cannot reliably change AWS Security Group rules unless AWS CLI credentials and permissions have already been provided.</p>
+
   <h2>1. Document Scope</h2>
   <p>This guide explains how an approved operator can install and configure the Neotree In-A-Box services on an Ubuntu 24 server. It is written for operational use and avoids engineering detail where possible. The guide assumes that the Ministry or implementing partner has already approved the server, the intended health facility, and the responsible staff members.</p>
   <p>The installation includes the Neotree API, WebEditor, Data Pipeline, and Metabase reporting service. These services work together to support local deployment, form management, data processing, and reporting. The full installer sets them up in this order: Neotree API first, WebEditor second, Data Pipeline third, and Metabase last.</p>

@@ -1,5 +1,13 @@
 # neotree-in-a-box-scripts
 
+## Required AWS setup before public testing
+If this is being installed on AWS, the person who creates or manages the EC2 server must open these inbound ports in the EC2 Security Group before non-technical operators test the public URLs:
+
+- TCP `80` for WebEditor: `http://<server-public-ip>`
+- TCP `8080` for Metabase: `http://<server-public-ip>:8080`
+
+This cannot be reliably completed from the server unless AWS CLI credentials and IAM permissions are already configured. For normal operator testing, ask the AWS administrator to open these ports in the Amazon Console first.
+
 Deployment helper scripts for the Neotree stack. Each component has a self-contained deployer under `deploy/` and a shared logging/checks library in `deploy/lib/`.
 
 ## Components
