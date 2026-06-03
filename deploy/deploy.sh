@@ -108,6 +108,7 @@ setup_public_ip_access() {
   PUBLIC_IP_NGINX_SETUP=1 \
     NGINX_SERVER_NAME="$public_ip" \
     NGINX_LISTEN_PORT=80 \
+    DISABLE_NGINX_SITES="neotree-node-api default" \
     bash "$NEOTREE_BASE_DIR/webeditor/phases/08_nginx_setup.sh"
 
   PUBLIC_IP_NGINX_SETUP=1 \

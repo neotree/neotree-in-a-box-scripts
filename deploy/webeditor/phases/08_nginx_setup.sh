@@ -8,6 +8,7 @@ ENV_FILE="${ENV_FILE:-$APP_DIR/.env}"
 NGINX_SITE_NAME="${NGINX_SITE_NAME:-neotree-webeditor}"
 NGINX_SERVER_NAME="${NGINX_SERVER_NAME:-}"
 NGINX_LISTEN_PORT="${NGINX_LISTEN_PORT:-80}"
+DISABLE_NGINX_SITES="${DISABLE_NGINX_SITES:-}"
 
 prompt() {
   local label="$1" default_value="${2:-}" input
@@ -189,9 +190,14 @@ server {
 EOF
       fi
 
-      if [ ! -L "$ENABLED_FILE" ]; then
-        sudo ln -s "$SITE_FILE" "$ENABLED_FILE"
-      fi
+      for disabled_site in $DISABLE_NGINX_SITES; do
+        if [ -e "/etc/nginx/sites-enabled/${disabled_site}.conf" ]; then
+          log_warn "Disabling nginx site that conflicts with WebEditor public access: ${disabled_site}.conf"
+          sudo rm -f "/etc/nginx/sites-enabled/${disabled_site}.conf"
+        fi
+      done
+
+      sudo ln -sf "$SITE_FILE" "$ENABLED_FILE"
 
       if [ -L "/etc/nginx/sites-enabled/default" ]; then
         sudo rm -f /etc/nginx/sites-enabled/default
@@ -200,8 +206,13 @@ EOF
       sudo nginx -t
       sudo systemctl reload nginx
 
-      if ! curl -fsS --max-time 5 "http://127.0.0.1:${NGINX_LISTEN_PORT}" >/dev/null 2>&1; then
+      proxy_body="$(curl -sS --max-time 5 "http://127.0.0.1:${NGINX_LISTEN_PORT}" 2>/dev/null || true)"
+      if [ -z "$proxy_body" ]; then
         log_error "nginx is not proxying WebEditor on local port ${NGINX_LISTEN_PORT}. Check WebEditor with: curl -I http://127.0.0.1:${SERVER_PORT}"
+        exit 1
+      fi
+      if printf '%s' "$proxy_body" | grep -q '"Node.js, Express, and Postgres API"'; then
+        log_error "nginx port ${NGINX_LISTEN_PORT} is still serving Node API, not WebEditor. Disable /etc/nginx/sites-enabled/neotree-node-api.conf and rerun this phase."
         exit 1
       fi
 
