@@ -11,6 +11,7 @@ DEPLOY_ENV="${DEPLOY_ENV:-production}"
 SERVER_PORT="3001"
 
 ensure_pm2
+PM2_BIN="$(command -v pm2)"
 
 if [ -f "$ENV_FILE" ]; then
   dotenv_read_var "$ENV_FILE" PORT "3001"
@@ -27,11 +28,11 @@ case "$DEPLOY_ENV" in
   *) log_error "Unknown DEPLOY_ENV '$DEPLOY_ENV'"; exit 1 ;;
 esac
 
-if pm2 describe "$PM2_APP_NAME" >/dev/null 2>&1; then
+if "$PM2_BIN" describe "$PM2_APP_NAME" >/dev/null 2>&1; then
   log_warn "Removing existing PM2 app: $PM2_APP_NAME"
-  pm2 delete "$PM2_APP_NAME"
+  "$PM2_BIN" delete "$PM2_APP_NAME"
 fi
 
-pm2 start npm --name "$PM2_APP_NAME" -- run "$START_SCRIPT"
-pm2 describe "$PM2_APP_NAME" >/dev/null
-pm2 save
+"$PM2_BIN" start npm --name "$PM2_APP_NAME" --update-env -- run "$START_SCRIPT"
+"$PM2_BIN" describe "$PM2_APP_NAME" >/dev/null
+"$PM2_BIN" save

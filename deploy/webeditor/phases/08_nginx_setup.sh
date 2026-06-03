@@ -78,6 +78,13 @@ while true; do
         SERVER_PORT="${SERVER_PORT:-3001}"
       fi
 
+      for candidate_port in "$SERVER_PORT" 3001 3000; do
+        if curl -sS --max-time 3 -o /dev/null -w '%{http_code}' "http://127.0.0.1:${candidate_port}" 2>/dev/null | grep -Eq '^[234]'; then
+          SERVER_PORT="$candidate_port"
+          break
+        fi
+      done
+
       if [ "${PUBLIC_IP_NGINX_SETUP:-0}" = "1" ]; then
         NGINX_SERVER_NAME="${NGINX_SERVER_NAME:-$(detect_public_ip)}"
         log_info "Using public IP as WebEditor server_name: $NGINX_SERVER_NAME"
