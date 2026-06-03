@@ -87,7 +87,7 @@
 
   <h2>1. Document Scope</h2>
   <p>This guide explains how an approved operator can install and configure the Neotree In-A-Box services on an Ubuntu 24 server. It is written for operational use and avoids engineering detail where possible. The guide assumes that the Ministry or implementing partner has already approved the server, the intended health facility, and the responsible staff members.</p>
-  <p>The installation includes the Neotree API, WebEditor, Data Pipeline, and Metabase reporting service. These services work together to support local deployment, form management, data processing, and reporting.</p>
+  <p>The installation includes the Neotree API, WebEditor, Data Pipeline, and Metabase reporting service. These services work together to support local deployment, form management, data processing, and reporting. The full installer sets them up in this order: Neotree API first, WebEditor second, Data Pipeline third, and Metabase last.</p>
 
   <h2>2. Roles and Responsibilities</h2>
   <table>
@@ -153,14 +153,48 @@
   <div class="command">chmod -R +x deploy</div>
 
   <h3>5.4 Start the Full Installation</h3>
-  <p>Run the full installation command below. The installer will set up the Neotree API, WebEditor, Data Pipeline, and Metabase in order.</p>
+  <p>Run the full installation command below. The installer follows the same order every time: Neotree API, WebEditor, Data Pipeline, and Metabase.</p>
   <div class="command">bash deploy/deploy.sh</div>
   <p>When prompted, choose the recommended express installation unless the Ministry or programme team has requested a custom setup. Express installation uses the standard defaults and avoids unnecessary questions.</p>
 
-  <h3>5.5 Respond to Prompts</h3>
+  <h3>5.5 Installation Order</h3>
+  <p>The installation order matters because later services use information created by earlier services. Operators should allow the installer to complete each stage in the order shown below.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Order</th>
+        <th>Component</th>
+        <th>Plain-language purpose</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>Neotree API</td>
+        <td>Creates the core service and database foundation used by the rest of the system.</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>WebEditor</td>
+        <td>Sets up the form management service and seeds the starting form data.</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>Data Pipeline</td>
+        <td>Creates the pipeline configuration, facility configuration, and automatic schedule for processing data.</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td>Metabase</td>
+        <td>Sets up the reporting service used to view dashboards and reports.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>5.6 Respond to Prompts</h3>
   <p>The installer may ask whether to install missing packages. Choose yes when the package is part of the installation requirement. The installer may also ask whether to continue with advanced setup for domain names, email, web server configuration, and certificates. If these details are not ready, it is acceptable to skip advanced setup and complete it later.</p>
 
-  <h3>5.6 Confirm Installation Completion</h3>
+  <h3>5.7 Confirm Installation Completion</h3>
   <p>At the end of a successful installation, the deployer records progress and prints a success message. Logs are saved inside the deployment folder under each service. These logs should be kept for support and audit purposes.</p>
   <div class="example">deploy/node-api/logs/
 deploy/webeditor/logs/
@@ -215,8 +249,74 @@ discharges = discharge-script-id</div>
   <h3>6.7 Metabase Configuration</h3>
   <p>Metabase is the reporting service. It uses its own application database and runs as a system service. On Ubuntu 24, Metabase requires Java 21 or newer. The deployer downloads a valid Metabase application file and checks that the file is usable before starting the service.</p>
 
-  <h3>6.8 Domain Names, Web Access, and Certificates</h3>
-  <p>Advanced setup can configure web access through nginx and optional HTTPS certificates. If a domain is not ready, the setup can use the server public IP address. If certificates are not ready, plain HTTP can be used temporarily where approved by the Ministry or programme owner.</p>
+  <h3>6.8 Public Web Access Using nginx</h3>
+  <p>nginx is the web server used to make approved services available through a public address. In this deployment, WebEditor and Metabase are the public-facing services. WebEditor is used by approved staff to manage forms. Metabase is used by approved staff to view reports and dashboards. The Neotree API supports the system behind the scenes and does not normally need to be presented as a public page for general users.</p>
+  <p>Advanced setup can configure public web access through nginx and optional HTTPS certificates. If a domain is not ready, the setup can use the server public IP address. If certificates are not ready, plain HTTP can be used temporarily where approved by the Ministry or programme owner.</p>
+
+  <h3>6.9 WebEditor nginx Setup</h3>
+  <p>WebEditor nginx setup should be completed when the WebEditor needs to be accessed by approved users outside the server. The operator may complete this during WebEditor advanced setup, or later by running only the WebEditor nginx phase.</p>
+  <div class="command">bash deploy/webeditor/phases/08_nginx_setup.sh</div>
+  <p>Before running this step, confirm the approved public address for WebEditor. This may be a domain name or the server public IP address. If using HTTPS, confirm that the certificate fullchain file and private key file are already available on the server.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>What the operator should provide</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Public address</td>
+        <td>The approved WebEditor domain name, or blank if the approved public IP address should be used.</td>
+      </tr>
+      <tr>
+        <td>HTTPS certificate</td>
+        <td>The path to the fullchain certificate file, if HTTPS is being enabled.</td>
+      </tr>
+      <tr>
+        <td>HTTPS private key</td>
+        <td>The path to the private key file, if HTTPS is being enabled. This file must be handled securely.</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>After setup, nginx is tested and reloaded by the script. If the public address does not open, check that the domain points to the server, the firewall allows web traffic, and the WebEditor service is running.</p>
+
+  <h3>6.10 Metabase nginx Setup</h3>
+  <p>Metabase nginx setup should be completed when dashboards and reports need to be accessed by approved users through a public address. The operator may complete this during Metabase advanced setup, or later by running only the Metabase nginx phase.</p>
+  <div class="command">bash deploy/metabase/phases/04_nginx_setup.sh</div>
+  <p>Before running this step, confirm the approved public address for Metabase. This may be a domain name or the server public IP address. If using HTTPS, confirm that the certificate fullchain file and private key file are already available on the server.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Item</th>
+        <th>What the operator should provide</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Public address</td>
+        <td>The approved Metabase domain name, or blank if the approved public IP address should be used.</td>
+      </tr>
+      <tr>
+        <td>HTTPS certificate</td>
+        <td>The path to the fullchain certificate file, if HTTPS is being enabled.</td>
+      </tr>
+      <tr>
+        <td>HTTPS private key</td>
+        <td>The path to the private key file, if HTTPS is being enabled. This file must be handled securely.</td>
+      </tr>
+    </tbody>
+  </table>
+  <p>After setup, nginx is tested and reloaded by the script. If the public address does not open, check that Metabase is running, the domain points to the server, and the firewall allows web traffic.</p>
+
+  <h3>6.11 Public Access Checklist</h3>
+  <ol>
+    <li>Confirm that only approved services are made publicly accessible.</li>
+    <li>Confirm that WebEditor and Metabase addresses are recorded in the installation record.</li>
+    <li>Confirm that certificate files are stored securely and are not copied into public folders.</li>
+    <li>Confirm that Ministry or programme owners have approved any temporary plain HTTP access.</li>
+    <li>Confirm that public access has been tested from an approved network.</li>
+  </ol>
 
   <h2>7. What We Support and Do Not Support</h2>
 
