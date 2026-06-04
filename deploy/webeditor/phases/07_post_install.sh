@@ -25,27 +25,24 @@ webeditor_candidate_ports() {
   printf '%s\n' "$SERVER_PORT"
   [ -n "${PORT:-}" ] && printf '%s\n' "$PORT"
   printf '%s\n' 3001
-  printf '%s\n' 3000
 }
 
-webeditor_http_status() {
+webeditor_test_response() {
   local port="$1"
-  curl -sS --max-time 5 -o /dev/null -w '%{http_code}' "http://127.0.0.1:${port}" 2>/dev/null || true
+  curl -fsS --max-time 5 "http://127.0.0.1:${port}/api/test" 2>/dev/null || true
 }
 
 for i in $(seq 1 "$WEBEDITOR_STARTUP_ATTEMPTS"); do
   while read -r candidate_port; do
     [ -n "$candidate_port" ] || continue
-    status_code="$(webeditor_http_status "$candidate_port")"
-    case "$status_code" in
-      2*|3*|4*)
-        log_success "WebEditor is responding locally on port $candidate_port with HTTP $status_code"
-        if [ "$candidate_port" != "$SERVER_PORT" ]; then
-          log_warn "WebEditor responded on port $candidate_port, but .env SERVER_PORT is $SERVER_PORT"
-        fi
-        exit 0
-        ;;
-    esac
+    response_body="$(webeditor_test_response "$candidate_port")"
+    if printf '%s' "$response_body" | grep -q '"status":"ok"'; then
+      log_success "WebEditor readiness endpoint is responding on port $candidate_port (/api/test)"
+      if [ "$candidate_port" != "$SERVER_PORT" ]; then
+        log_warn "WebEditor responded on port $candidate_port, but .env SERVER_PORT is $SERVER_PORT"
+      fi
+      exit 0
+    fi
   done <<EOF
 $(webeditor_candidate_ports | awk '!seen[$0]++')
 EOF
@@ -55,10 +52,10 @@ EOF
     exit 1
   fi
 
-  log_info "WebEditor is still starting; checked ports $(webeditor_candidate_ports | awk '!seen[$0]++' | paste -sd, -) ($i/$WEBEDITOR_STARTUP_ATTEMPTS)"
+  log_info "WebEditor is still starting; checked /api/test on ports $(webeditor_candidate_ports | awk '!seen[$0]++' | paste -sd, -) ($i/$WEBEDITOR_STARTUP_ATTEMPTS)"
   sleep "$WEBEDITOR_STARTUP_SLEEP_SECONDS"
 done
 
-log_error "WebEditor is not responding locally after $((WEBEDITOR_STARTUP_ATTEMPTS * WEBEDITOR_STARTUP_SLEEP_SECONDS)) seconds. Check logs with: $PM2_BIN logs $PM2_APP_NAME"
+log_error "WebEditor /api/test is not responding with status ok after $((WEBEDITOR_STARTUP_ATTEMPTS * WEBEDITOR_STARTUP_SLEEP_SECONDS)) seconds. Check logs with: $PM2_BIN logs $PM2_APP_NAME"
 "$PM2_BIN" status "$PM2_APP_NAME" || true
 exit 1

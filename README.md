@@ -112,7 +112,8 @@ PYTHON_BIN=python3.8 bash deploy/datapipeline/deploy.sh
 - Domain prompt blank ⇒ uses detected public IP.
 - TLS prompt skip ⇒ plain HTTP on port 80.
 - Cert/key staged under `/etc/ssl/neotree/` named per site (e.g., `neotree-node-api.crt`).
-- Environment knobs: `NGINX_SITE_NAME`, `NGINX_SERVER_NAME`, `SKIP_NGINX_SETUP=1` (to bypass), `MB_PORT`, `MB_VERSION`, `MB_DOWNLOAD_URL`, `APP_ROOT`, `NODE_ENV_FILE`, `PYTHON_BIN` (datapipeline), `DATAPIPELINE_REPO`, `DATAPIPELINE_BRANCH`, `UPDATE_REPO=1`.
+- Environment knobs: `NGINX_SITE_NAME`, `NGINX_SERVER_NAME`, `SKIP_NGINX_SETUP=1` (to bypass), `MB_PORT`, `MB_VERSION`, `MB_DOWNLOAD_URL`, `APP_ROOT`, `NODE_ENV_FILE`, `PYTHON_BIN` (datapipeline), `NODE_API_REPO`, `NODE_API_BRANCH`, `WEBEDITOR_REPO`, `WEBEDITOR_BRANCH`, `DATAPIPELINE_REPO`, `DATAPIPELINE_BRANCH`, `UPDATE_REPO=1`.
+- Node API, WebEditor, and Data Pipeline default to the `auto-deploy` branch. Override with the relevant `*_BRANCH` variable if needed.
 - Express public-IP access can be disabled with `SETUP_PUBLIC_IP_ACCESS=0`. Override detected IP with `PUBLIC_SERVER_IP`.
 
 ## Troubleshooting
