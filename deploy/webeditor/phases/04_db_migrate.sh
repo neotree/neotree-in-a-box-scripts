@@ -316,10 +316,10 @@ ensure_webeditor_api_key
 special_files=(
   "$DB_DIR/create_user.sql"
 )
-if demo_data_file="$(first_existing_file "$DB_DIR/demo_data.sql" "$DB_DIR/demo_data.sql.gz")"; then
+if demo_data_file="$(first_existing_file "$DB_DIR/demo_data.sql.gz" "$DB_DIR/demo_data.sql")"; then
   special_files+=("$demo_data_file")
 else
-  special_files+=("$DB_DIR/demo_data.sql")
+  special_files+=("$DB_DIR/demo_data.sql.gz")
 fi
 special_files+=(
   "$DB_DIR/replace_user_references.sql"
