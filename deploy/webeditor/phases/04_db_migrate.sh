@@ -141,6 +141,55 @@ apply_sql_file() {
   mark_migration_applied "$fname"
 }
 
+apply_manual_sql_file() {
+  local file="$1"
+  local fname
+  fname="manual_migrations/$(basename "$file")"
+
+  if [ "$(migration_applied "$fname")" = "1" ]; then
+    log_info "Skipping $fname (already applied)"
+    return 0
+  fi
+
+  if [ "${DRY_RUN:-0}" = "1" ]; then
+    log_info "Would apply $fname"
+    return 0
+  fi
+
+  log_info "Applying $fname"
+  PGPASSWORD="${PGPASSWORD:-}" psql -v ON_ERROR_STOP=1 \
+    --single-transaction \
+    "$PG_CONN" \
+    -f "$file" 2>&1 | tee -a "$LOG_FILE"
+  if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+    log_error "Failed on $fname. See $LOG_FILE"
+    exit 1
+  fi
+
+  mark_migration_applied "$fname"
+}
+
+apply_manual_migrations() {
+  local manual_dir="$APP_DIR/manual_migrations"
+  local manual_files
+
+  if [ ! -d "$manual_dir" ]; then
+    log_info "No WebEditor manual migrations directory found at $manual_dir"
+    return 0
+  fi
+
+  mapfile -t manual_files < <(find "$manual_dir" -maxdepth 1 -type f -name "*.sql" | sort)
+  if [ "${#manual_files[@]}" -eq 0 ]; then
+    log_info "No WebEditor manual migration SQL files found in $manual_dir"
+    return 0
+  fi
+
+  log_info "Running WebEditor manual migrations from $manual_dir"
+  for file in "${manual_files[@]}"; do
+    apply_manual_sql_file "$file"
+  done
+}
+
 demo_data_state() {
   PGPASSWORD="${PGPASSWORD:-}" psql -tAc "
     WITH seed_tables AS (
@@ -369,5 +418,7 @@ for file in "${special_files[@]}"; do
       ;;
   esac
 done
+
+apply_manual_migrations
 
 log_success "Database scripts completed successfully"

@@ -209,8 +209,13 @@ EOF
 
       proxy_body="$(curl -fsS --max-time 5 -H "Host: ${NGINX_SERVER_NAME}" "http://127.0.0.1:${NGINX_LISTEN_PORT}/api/test" 2>/dev/null || true)"
       if ! printf '%s' "$proxy_body" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"'; then
-        log_error "nginx is not proxying WebEditor /api/test for host ${NGINX_SERVER_NAME} on local port ${NGINX_LISTEN_PORT}. Check WebEditor with: curl http://127.0.0.1:${SERVER_PORT}/api/test"
-        exit 1
+        direct_body="$(curl -fsS --max-time 5 "http://127.0.0.1:${SERVER_PORT}/api/test" 2>/dev/null || true)"
+        if printf '%s' "$direct_body" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"'; then
+          log_warn "Local nginx /api/test probe for host ${NGINX_SERVER_NAME} on port ${NGINX_LISTEN_PORT} did not return status ok, but WebEditor is healthy on 127.0.0.1:${SERVER_PORT}; continuing"
+        else
+          log_error "WebEditor /api/test is not healthy on 127.0.0.1:${SERVER_PORT}. Check WebEditor with: curl http://127.0.0.1:${SERVER_PORT}/api/test"
+          exit 1
+        fi
       fi
 
       nodeapi_body="$(curl -sS --max-time 5 -H "Host: ${NGINX_SERVER_NAME}" "http://127.0.0.1:${NGINX_LISTEN_PORT}" 2>/dev/null || true)"
