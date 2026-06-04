@@ -36,7 +36,7 @@ for i in $(seq 1 "$WEBEDITOR_STARTUP_ATTEMPTS"); do
   while read -r candidate_port; do
     [ -n "$candidate_port" ] || continue
     response_body="$(webeditor_test_response "$candidate_port")"
-    if printf '%s' "$response_body" | grep -q '"status":"ok"'; then
+    if printf '%s' "$response_body" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"'; then
       log_success "WebEditor readiness endpoint is responding on port $candidate_port (/api/test)"
       if [ "$candidate_port" != "$SERVER_PORT" ]; then
         log_warn "WebEditor responded on port $candidate_port, but .env SERVER_PORT is $SERVER_PORT"

@@ -28,7 +28,8 @@ fi
 progress_prepare_component_run "$COMPONENT_NAME"
 
 if progress_is_component_complete "$COMPONENT_NAME"; then
-  log_info "Skipping $COMPONENT_NAME deployment; already completed in a previous run"
+  log_info "$COMPONENT_NAME deployment was already completed in a previous run; rechecking database migrations"
+  bash "$BASE_DIR/phases/04_db_migrate.sh"
   exit 0
 fi
 

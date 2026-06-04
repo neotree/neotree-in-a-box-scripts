@@ -81,7 +81,7 @@ while true; do
 
       for candidate_port in "$SERVER_PORT" 3001; do
         readiness_body="$(curl -fsS --max-time 5 "http://127.0.0.1:${candidate_port}/api/test" 2>/dev/null || true)"
-        if printf '%s' "$readiness_body" | grep -q '"status":"ok"'; then
+        if printf '%s' "$readiness_body" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"'; then
           SERVER_PORT="$candidate_port"
           break
         fi
@@ -207,13 +207,13 @@ EOF
       sudo nginx -t
       sudo systemctl reload nginx
 
-      proxy_body="$(curl -fsS --max-time 5 "http://127.0.0.1:${NGINX_LISTEN_PORT}/api/test" 2>/dev/null || true)"
-      if ! printf '%s' "$proxy_body" | grep -q '"status":"ok"'; then
-        log_error "nginx is not proxying WebEditor /api/test on local port ${NGINX_LISTEN_PORT}. Check WebEditor with: curl http://127.0.0.1:${SERVER_PORT}/api/test"
+      proxy_body="$(curl -fsS --max-time 5 -H "Host: ${NGINX_SERVER_NAME}" "http://127.0.0.1:${NGINX_LISTEN_PORT}/api/test" 2>/dev/null || true)"
+      if ! printf '%s' "$proxy_body" | grep -Eq '"status"[[:space:]]*:[[:space:]]*"ok"'; then
+        log_error "nginx is not proxying WebEditor /api/test for host ${NGINX_SERVER_NAME} on local port ${NGINX_LISTEN_PORT}. Check WebEditor with: curl http://127.0.0.1:${SERVER_PORT}/api/test"
         exit 1
       fi
 
-      nodeapi_body="$(curl -sS --max-time 5 "http://127.0.0.1:${NGINX_LISTEN_PORT}" 2>/dev/null || true)"
+      nodeapi_body="$(curl -sS --max-time 5 -H "Host: ${NGINX_SERVER_NAME}" "http://127.0.0.1:${NGINX_LISTEN_PORT}" 2>/dev/null || true)"
       if printf '%s' "$nodeapi_body" | grep -q '"Node.js, Express, and Postgres API"'; then
         log_error "nginx port ${NGINX_LISTEN_PORT} is still serving Node API, not WebEditor. Disable /etc/nginx/sites-enabled/neotree-node-api.conf and rerun this phase."
         exit 1

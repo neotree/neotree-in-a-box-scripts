@@ -70,6 +70,9 @@ run_tracked_phase() {
 
   if progress_is_phase_complete "$component" "$phase"; then
     case "$phase" in
+      04_db_migrate)
+        log_info "Rechecking $component phase $phase ($description); database migrations are idempotent"
+        ;;
       06_pm2_start)
         case "$component" in
           node-api) pm2_app_name="${PM2_APP_NAME:-neotree-api}" ;;

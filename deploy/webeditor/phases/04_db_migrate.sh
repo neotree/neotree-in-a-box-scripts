@@ -171,6 +171,17 @@ migration_name_for_file() {
   printf '%s\n' "${fname%.gz}"
 }
 
+first_existing_file() {
+  local file
+  for file in "$@"; do
+    if [ -f "$file" ]; then
+      printf '%s\n' "$file"
+      return 0
+    fi
+  done
+  return 1
+}
+
 prompt_required() {
   local var_name="$1"
   local label="$2"
@@ -304,7 +315,13 @@ ensure_webeditor_api_key
 
 special_files=(
   "$DB_DIR/create_user.sql"
-  "$DB_DIR/demo_data.sql.gz"
+)
+if demo_data_file="$(first_existing_file "$DB_DIR/demo_data.sql" "$DB_DIR/demo_data.sql.gz")"; then
+  special_files+=("$demo_data_file")
+else
+  special_files+=("$DB_DIR/demo_data.sql")
+fi
+special_files+=(
   "$DB_DIR/replace_user_references.sql"
 )
 
