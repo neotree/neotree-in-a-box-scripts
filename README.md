@@ -1,5 +1,8 @@
 # neotree-in-a-box-scripts
 
+# DISCLAIMER
+The initial scripts configured in the Web Editor are provided for testing and initial setup purposes only. After the setup has been successfully completed and validated, these scripts may be modified, removed, or replaced with new scripts to better align with your clinical needs and operational requirements.
+
 ## Required AWS setup before public testing
 If this is being installed on AWS, the person who creates or manages the EC2 server must open these inbound ports in the EC2 Security Group before non-technical operators test the public URLs:
 
